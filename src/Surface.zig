@@ -30,6 +30,7 @@ const font = @import("font/main.zig");
 const Command = @import("Command.zig");
 const terminal = @import("terminal/main.zig");
 const configpkg = @import("config.zig");
+const ConfigOverrides = configpkg.ConfigOverrides;
 const Duration = configpkg.Config.Duration;
 const input = @import("input.zig");
 const App = @import("App.zig");
@@ -607,10 +608,27 @@ pub fn init(
     };
 
     // The command we're going to execute
-    const command: ?configpkg.Command = if (app.first)
-        config.@"initial-command" orelse config.command
-    else
-        config.command;
+    const command: ?configpkg.Command = command: {
+        if (self.getConfigOverrides()) |config_overrides| {
+            if (config_overrides.isSet(.command))
+                break :command config_overrides.get(.command);
+        }
+        if (app.first) {
+            if (config.@"initial-command") |command| {
+                break :command command;
+            }
+        }
+        break :command config.command;
+    };
+
+    // The working directory to execute the command in.
+    const working_directory: ?[]const u8 = wd: {
+        if (self.getConfigOverrides()) |config_overrides| {
+            if (config_overrides.isSet(.@"working-directory"))
+                break :wd config_overrides.get(.@"working-directory");
+        }
+        break :wd config.@"working-directory";
+    };
 
     // Start our IO implementation
     // This separate block ({}) is important because our errdefers must
@@ -627,41 +645,31 @@ pub fn init(
         // don't leak GHOSTTY_LOG to any subprocesses
         env.remove("GHOSTTY_LOG");
 
-        // Initialize our IO mailbox (needed for all backends)
+        // Initialize our IO backend
+        var io_exec = try termio.Exec.init(alloc, .{
+            .command = command,
+            .env = env,
+            .env_override = config.env,
+            .shell_integration = config.@"shell-integration",
+            .shell_integration_features = config.@"shell-integration-features",
+            .cursor_blink = config.@"cursor-style-blink",
+            .working_directory = working_directory,
+            .resources_dir = global_state.resources_dir.host(),
+            .term = config.term,
+            .rt_pre_exec_info = .init(config),
+            .rt_post_fork_info = .init(config),
+        });
+        errdefer io_exec.deinit();
+
+        // Initialize our IO mailbox
         var io_mailbox = try termio.Mailbox.initSPSC(alloc);
         errdefer io_mailbox.deinit(alloc);
-
-        // Initialize our IO backend based on configuration
-        const backend: termio.backend.Backend = switch (config.@"terminal-backend") {
-            .exec => backend: {
-                // Initialize exec backend with PTY
-                const io_exec = try termio.Exec.init(alloc, .{
-                    .command = command,
-                    .env = env,
-                    .env_override = config.env,
-                    .shell_integration = config.@"shell-integration",
-                    .shell_integration_features = config.@"shell-integration-features",
-                    .cursor_blink = config.@"cursor-style-blink",
-                    .working_directory = config.@"working-directory",
-                    .resources_dir = global_state.resources_dir.host(),
-                    .term = config.term,
-                    .rt_pre_exec_info = .init(config),
-                    .rt_post_fork_info = .init(config),
-                });
-                break :backend .{ .exec = io_exec };
-            },
-            .tmux => backend: {
-                // Initialize tmux backend (bypasses PTY allocation)
-                const io_tmux = try termio.Tmux.init(alloc, .{});
-                break :backend .{ .tmux = io_tmux };
-            },
-        };
 
         try termio.Termio.init(&self.io, alloc, .{
             .size = size,
             .full_config = config,
             .config = try termio.Termio.DerivedConfig.init(alloc, config),
-            .backend = backend,
+            .backend = .{ .exec = io_exec },
             .mailbox = io_mailbox,
             .renderer_state = &self.renderer_state,
             .renderer_wakeup = render_thread.wakeup,
@@ -1155,11 +1163,6 @@ pub fn handleMessage(self: *Surface, msg: Message) !void {
                 .{ .selected = v },
             );
         },
-
-        .pane_dirty => |pane_id| {
-            log.debug("received pane_dirty message for pane id={d}", .{pane_id});
-            try self.queueRender();
-        },
     }
 }
 
@@ -1302,10 +1305,6 @@ fn childExitedAbnormally(
     // Build up our command for the error message
     const command = try std.mem.join(alloc, " ", switch (self.io.backend) {
         .exec => |*exec| exec.subprocess.args,
-        .tmux => |*tmux| blk: {
-            _ = tmux;
-            break :blk &.{"tmux"};
-        },
     });
     const runtime_str = try std.fmt.allocPrint(alloc, "{d} ms", .{info.runtime_ms});
 
@@ -1806,6 +1805,13 @@ pub fn updateConfig(
         .config_change,
         .{ .config = config },
     );
+}
+
+fn getConfigOverrides(self: *Surface) ?*const ConfigOverrides {
+    if (@hasDecl(apprt.runtime.Surface, "getConfigOverrides")) {
+        return self.rt_surface.getConfigOverrides();
+    }
+    return null;
 }
 
 const InitialSizeError = error{
@@ -2776,11 +2782,12 @@ pub fn keyCallback(
             return .closed;
         }
 
-        // Get the data slice from the write request and write directly
-        // to the backend. We defer deinit after writing.
-        const data = write_req.slice();
-        defer write_req.deinit();
-        try self.io.backend.write(data);
+        errdefer write_req.deinit();
+        self.queueIo(switch (write_req) {
+            .small => |v| .{ .write_small = v },
+            .stable => |v| .{ .write_stable = v },
+            .alloc => |v| .{ .write_alloc = v },
+        }, .unlocked);
     } else {
         // No valid request means that we didn't encode anything.
         return .ignored;
@@ -3127,11 +3134,11 @@ fn endKeySequence(
     // Run the proper action first
     switch (action) {
         .flush => for (self.keyboard.sequence_queued.items) |write_req| {
-            const data = write_req.slice();
-            defer write_req.deinit();
-            self.io.backend.write(data) catch |err| {
-                log.warn("failed to write key sequence: {}", .{err});
-            };
+            self.queueIo(switch (write_req) {
+                .small => |v| .{ .write_small = v },
+                .stable => |v| .{ .write_stable = v },
+                .alloc => |v| .{ .write_alloc = v },
+            }, .unlocked);
         },
 
         .drop => for (self.keyboard.sequence_queued.items) |req| req.deinit(),
