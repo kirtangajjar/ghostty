@@ -446,6 +446,10 @@ pub const StreamHandler = struct {
                         .windows => {
                             // TODO
                         },
+
+                        .pane_dirty => |pane_id| {
+                            self.surfaceMessageWriter(.{ .pane_dirty = pane_id });
+                        },
                     }
                 }
             },

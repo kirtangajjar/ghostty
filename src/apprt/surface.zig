@@ -108,6 +108,10 @@ pub const Message = union(enum) {
     /// Selected search index change
     search_selected: ?usize,
 
+    /// A tmux pane has received new output and needs to be re-rendered.
+    /// The usize value is the pane ID.
+    pane_dirty: usize,
+
     pub const ReportTitleStyle = enum {
         csi_21_t,
 
