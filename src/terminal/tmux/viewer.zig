@@ -307,6 +307,20 @@ pub const Viewer = struct {
         self.action_arena.promote(self.alloc).deinit();
     }
 
+    /// Returns the current window state for the session.
+    ///
+    /// This is a thread-safe getter that returns a slice of the current
+    /// windows. The returned slice is valid until the next call to `next()`
+    /// which may mutate the window list.
+    ///
+    /// Note: The caller must ensure they are not calling this concurrently
+    /// with mutations (i.e., from a different thread than the one calling
+    /// `next()`). If cross-thread access is needed, external synchronization
+    /// would be required.
+    pub fn getWindows(self: *const Viewer) []const Window {
+        return self.windows.items;
+    }
+
     /// Send in an input event (such as a tmux protocol notification,
     /// keyboard input for a pane, etc.) and process it. The returned
     /// list is a set of actions to take as a result of the input prior
