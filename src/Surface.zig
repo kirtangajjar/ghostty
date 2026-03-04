@@ -2766,12 +2766,11 @@ pub fn keyCallback(
             return .closed;
         }
 
-        errdefer write_req.deinit();
-        self.queueIo(switch (write_req) {
-            .small => |v| .{ .write_small = v },
-            .stable => |v| .{ .write_stable = v },
-            .alloc => |v| .{ .write_alloc = v },
-        }, .unlocked);
+        // Get the data slice from the write request and write directly
+        // to the backend. We defer deinit after writing.
+        const data = write_req.slice();
+        defer write_req.deinit();
+        try self.io.backend.write(data);
     } else {
         // No valid request means that we didn't encode anything.
         return .ignored;
@@ -3118,11 +3117,11 @@ fn endKeySequence(
     // Run the proper action first
     switch (action) {
         .flush => for (self.keyboard.sequence_queued.items) |write_req| {
-            self.queueIo(switch (write_req) {
-                .small => |v| .{ .write_small = v },
-                .stable => |v| .{ .write_stable = v },
-                .alloc => |v| .{ .write_alloc = v },
-            }, .unlocked);
+            const data = write_req.slice();
+            defer write_req.deinit();
+            self.io.backend.write(data) catch |err| {
+                log.warn("failed to write key sequence: {}", .{err});
+            };
         },
 
         .drop => for (self.keyboard.sequence_queued.items) |req| req.deinit(),

@@ -466,6 +466,26 @@ pub fn queueWrite(
     }
 }
 
+/// Write data directly to the PTY. This is a synchronous write
+/// that bypasses the async queue system. This is useful for
+/// cases where we need to write data immediately without going
+/// through the mailbox.
+pub fn write(self: *Exec, data: []const u8) !void {
+    const pty = self.subprocess.pty orelse return error.PtyNotInitialized;
+    const fd = pty.master;
+
+    // Write all data to the PTY
+    var remaining = data;
+    while (remaining.len > 0) {
+        const written = posix.write(fd, remaining) catch |err| {
+            log.err("failed to write to PTY: {}", .{err});
+            return err;
+        };
+        if (written == 0) return error.WriteFailed;
+        remaining = remaining[written..];
+    }
+}
+
 fn ttyWrite(
     td_: ?*ThreadData,
     _: *xev.Loop,
