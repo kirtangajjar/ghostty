@@ -1,10 +1,15 @@
+{"created_at":"2026-03-05T03:22:02Z","created_by":"mayor","depends_on_id":"ghostty-lqf","issue_id":"ghostty-0mx","type":"discovered-from"}
 {"created_at":"2026-03-04T01:52:31Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-8pxb","issue_id":"ghostty-1vx0","type":"parent-child"}
+{"created_at":"2026-03-05T03:33:25Z","created_by":"mayor","depends_on_id":"ghostty-wisp-m8zdb","issue_id":"ghostty-2ij","type":"blocks"}
+{"created_at":"2026-03-05T03:21:56Z","created_by":"mayor","depends_on_id":"ghostty-8j8","issue_id":"ghostty-2wa","type":"discovered-from"}
 {"created_at":"2026-03-04T02:25:52Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-1ufs2","issue_id":"ghostty-31lv","type":"parent-child"}
 {"created_at":"2026-03-02T17:40:22Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-7j0","issue_id":"ghostty-3n3","type":"blocks"}
 {"created_at":"2026-03-02T17:40:27Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-8j8","issue_id":"ghostty-3n3","type":"blocks"}
 {"created_at":"2026-03-02T17:40:17Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-jfa","issue_id":"ghostty-3n3","type":"blocks"}
 {"created_at":"2026-03-02T17:40:32Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-lqf","issue_id":"ghostty-3n3","type":"blocks"}
+{"created_at":"2026-03-05T03:35:30Z","created_by":"mayor","depends_on_id":"ghostty-wisp-ekvdw","issue_id":"ghostty-49x","type":"blocks"}
 {"created_at":"2026-03-04T01:51:45Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-9id6","issue_id":"ghostty-53s5","type":"parent-child"}
+{"created_at":"2026-03-05T03:21:30Z","created_by":"mayor","depends_on_id":"ghostty-7ia","issue_id":"ghostty-5e7","type":"discovered-from"}
 {"created_at":"2026-03-04T02:10:02Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-lvz32","issue_id":"ghostty-6lpg","type":"parent-child"}
 {"created_at":"2026-03-03T21:12:30Z","created_by":"ghostty/refinery","depends_on_id":"ghostty-wisp-wisp-7vtk","issue_id":"ghostty-763i","type":"parent-child"}
 {"created_at":"2026-03-02T17:40:58Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-3ek","issue_id":"ghostty-7ex","type":"blocks"}
@@ -12,19 +17,29 @@
 {"created_at":"2026-03-02T17:40:47Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-gth","issue_id":"ghostty-7ex","type":"blocks"}
 {"created_at":"2026-03-02T17:40:52Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-hbs","issue_id":"ghostty-7ex","type":"blocks"}
 {"created_at":"2026-03-02T17:40:42Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-rl2","issue_id":"ghostty-7ex","type":"blocks"}
+{"created_at":"2026-03-05T03:33:10Z","created_by":"mayor","depends_on_id":"ghostty-wisp-6c2lc","issue_id":"ghostty-7ia","type":"blocks"}
+{"created_at":"2026-03-05T03:34:41Z","created_by":"mayor","depends_on_id":"ghostty-wisp-0y7y7","issue_id":"ghostty-7j0","type":"blocks"}
 {"created_at":"2026-03-04T00:24:43Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-43w0","issue_id":"ghostty-7ut5","type":"parent-child"}
+{"created_at":"2026-03-05T03:21:40Z","created_by":"mayor","depends_on_id":"ghostty-gth","issue_id":"ghostty-830","type":"discovered-from"}
 {"created_at":"2026-03-03T23:29:03Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-7sbv","issue_id":"ghostty-83mm","type":"parent-child"}
+{"created_at":"2026-03-05T03:34:59Z","created_by":"mayor","depends_on_id":"ghostty-wisp-lql0e","issue_id":"ghostty-8j8","type":"blocks"}
 {"created_at":"2026-03-04T02:03:10Z","created_by":"ghostty/refinery","depends_on_id":"ghostty-wisp-wisp-8h2mk","issue_id":"ghostty-9yi3","type":"parent-child"}
 {"created_at":"2026-03-03T21:02:10Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-wisp-wisp-bd8c","issue_id":"ghostty-a11","type":"blocks"}
+{"created_at":"2026-03-05T03:33:39Z","created_by":"mayor","depends_on_id":"ghostty-wisp-kxbm8","issue_id":"ghostty-a2l","type":"blocks"}
 {"created_at":"2026-03-03T21:32:34Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-l5myp","issue_id":"ghostty-a5re","type":"parent-child"}
+{"created_at":"2026-03-05T03:21:25Z","created_by":"mayor","depends_on_id":"ghostty-w61","issue_id":"ghostty-bik","type":"discovered-from"}
 {"created_at":"2026-03-04T02:26:25Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-194m4","issue_id":"ghostty-bvz1","type":"parent-child"}
 {"created_at":"2026-03-05T03:21:20Z","created_by":"mayor","depends_on_id":"ghostty-e27","issue_id":"ghostty-c8a","type":"discovered-from"}
 {"created_at":"2026-03-04T02:28:29Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-expj4","issue_id":"ghostty-dgbg","type":"parent-child"}
+{"created_at":"2026-03-05T03:32:41Z","created_by":"mayor","depends_on_id":"ghostty-wisp-tlju0","issue_id":"ghostty-e27","type":"blocks"}
 {"created_at":"2026-03-04T01:52:10Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-idvk","issue_id":"ghostty-e5q3","type":"parent-child"}
 {"created_at":"2026-03-04T01:50:27Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-hrm8","issue_id":"ghostty-ebxx","type":"parent-child"}
 {"created_at":"2026-03-03T21:10:19Z","created_by":"ghostty/refinery","depends_on_id":"ghostty-wisp-wisp-i5z5","issue_id":"ghostty-gd8m","type":"parent-child"}
 {"created_at":"2026-03-04T02:25:12Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-5c7c3","issue_id":"ghostty-gqlp","type":"parent-child"}
 {"created_at":"2026-03-04T02:23:01Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-zivia","issue_id":"ghostty-hf3l","type":"parent-child"}
+{"created_at":"2026-03-05T03:21:24Z","created_by":"mayor","depends_on_id":"ghostty-tx5","issue_id":"ghostty-hmb","type":"discovered-from"}
+{"created_at":"2026-03-05T03:21:42Z","created_by":"mayor","depends_on_id":"ghostty-7ex","issue_id":"ghostty-hum","type":"discovered-from"}
+{"created_at":"2026-03-05T03:21:41Z","created_by":"mayor","depends_on_id":"ghostty-hbs","issue_id":"ghostty-hvu","type":"discovered-from"}
 {"created_at":"2026-03-04T02:21:03Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-u4yo2","issue_id":"ghostty-hz0k","type":"parent-child"}
 {"created_at":"2026-03-05T01:41:13Z","created_by":"mayor","depends_on_id":"ghostty-2ij","issue_id":"ghostty-ih0","type":"blocks"}
 {"created_at":"2026-03-04T01:56:43Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-3c4ug","issue_id":"ghostty-jc2j","type":"parent-child"}
@@ -32,22 +47,31 @@
 {"created_at":"2026-03-02T17:40:07Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-a2l","issue_id":"ghostty-jfa","type":"blocks"}
 {"created_at":"2026-03-02T17:39:57Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-tx5","issue_id":"ghostty-jfa","type":"blocks"}
 {"created_at":"2026-03-02T17:40:12Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-w61","issue_id":"ghostty-jfa","type":"blocks"}
+{"created_at":"2026-03-05T03:34:27Z","created_by":"mayor","depends_on_id":"ghostty-wisp-u0g2w","issue_id":"ghostty-jfa","type":"blocks"}
 {"created_at":"2026-03-04T02:24:32Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-uh5xr","issue_id":"ghostty-kaxl","type":"parent-child"}
 {"created_at":"2026-03-03T19:33:15Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-wisp-wisp-ci1v","issue_id":"ghostty-kgn","type":"blocks"}
+{"created_at":"2026-03-05T03:35:17Z","created_by":"mayor","depends_on_id":"ghostty-wisp-c5li8","issue_id":"ghostty-lqf","type":"blocks"}
 {"created_at":"2026-03-03T21:28:24Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-yeeg8","issue_id":"ghostty-lrtw","type":"parent-child"}
 {"created_at":"2026-03-04T02:27:44Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-1ynig","issue_id":"ghostty-luny","type":"parent-child"}
 {"created_at":"2026-03-04T02:19:36Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-lf4ui","issue_id":"ghostty-m8i4","type":"parent-child"}
 {"created_at":"2026-03-04T02:23:56Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-vne5e","issue_id":"ghostty-p91x","type":"parent-child"}
+{"created_at":"2026-03-05T03:21:45Z","created_by":"mayor","depends_on_id":"ghostty-jfa","issue_id":"ghostty-p9w","type":"discovered-from"}
 {"created_at":"2026-03-04T02:04:42Z","created_by":"ghostty/refinery","depends_on_id":"ghostty-wisp-wisp-yaxdn","issue_id":"ghostty-pdmv","type":"parent-child"}
 {"created_at":"2026-03-04T02:27:04Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-aoqpy","issue_id":"ghostty-qc3h","type":"parent-child"}
+{"created_at":"2026-03-05T03:21:40Z","created_by":"mayor","depends_on_id":"ghostty-3n3","issue_id":"ghostty-qj0","type":"discovered-from"}
+{"created_at":"2026-03-05T03:21:25Z","created_by":"mayor","depends_on_id":"ghostty-a2l","issue_id":"ghostty-qsv","type":"discovered-from"}
 {"created_at":"2026-03-03T21:39:49Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-n5ace","issue_id":"ghostty-r8ia","type":"parent-child"}
+{"created_at":"2026-03-05T03:21:51Z","created_by":"mayor","depends_on_id":"ghostty-7j0","issue_id":"ghostty-soo","type":"discovered-from"}
 {"created_at":"2026-03-02T17:39:52Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-49x","issue_id":"ghostty-tx5","type":"blocks"}
 {"created_at":"2026-03-02T17:39:42Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-7ia","issue_id":"ghostty-tx5","type":"blocks"}
 {"created_at":"2026-03-02T17:39:47Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-a11","issue_id":"ghostty-tx5","type":"blocks"}
 {"created_at":"2026-03-02T17:39:36Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-e27","issue_id":"ghostty-tx5","type":"blocks"}
+{"created_at":"2026-03-05T03:21:40Z","created_by":"mayor","depends_on_id":"ghostty-rl2","issue_id":"ghostty-u3r","type":"discovered-from"}
 {"created_at":"2026-03-03T21:31:29Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-py0e5","issue_id":"ghostty-vlz0","type":"parent-child"}
 {"created_at":"2026-03-04T02:21:52Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-snjhj","issue_id":"ghostty-vtzn","type":"parent-child"}
+{"created_at":"2026-03-05T03:34:14Z","created_by":"mayor","depends_on_id":"ghostty-wisp-5y0s8","issue_id":"ghostty-w61","type":"blocks"}
 {"created_at":"2026-03-03T22:11:55Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-17mnx","issue_id":"ghostty-war0","type":"parent-child"}
+{"created_at":"2026-03-05T03:21:37Z","created_by":"mayor","depends_on_id":"ghostty-49x","issue_id":"ghostty-z45","type":"discovered-from"}
 {"created_at":"2026-03-03T18:07:53Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-7ex","issue_id":"hq-cv-0e3","type":"tracks"}
 {"created_at":"2026-03-03T16:32:44Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-7ex","issue_id":"hq-cv-2sh","type":"tracks"}
 {"created_at":"2026-03-03T16:03:56Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-2ij","issue_id":"hq-cv-9px","type":"tracks"}
@@ -83,12 +107,15 @@
 {"created_at":"2026-03-03T18:03:13Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-8j8","issue_id":"hq-cv-td3","type":"tracks"}
 {"created_at":"2026-03-03T18:03:14Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-a11","issue_id":"hq-cv-td3","type":"tracks"}
 {"created_at":"2026-03-03T18:03:13Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-a2l","issue_id":"hq-cv-td3","type":"tracks"}
+{"created_at":"2026-03-05T03:23:55Z","created_by":"mayor","depends_on_id":"ghostty-bik","issue_id":"hq-cv-td3","type":"tracks"}
 {"created_at":"2026-03-03T18:03:14Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-e27","issue_id":"hq-cv-td3","type":"tracks"}
 {"created_at":"2026-03-03T18:03:13Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-gth","issue_id":"hq-cv-td3","type":"tracks"}
 {"created_at":"2026-03-03T18:03:13Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-hbs","issue_id":"hq-cv-td3","type":"tracks"}
+{"created_at":"2026-03-05T03:23:55Z","created_by":"mayor","depends_on_id":"ghostty-hmb","issue_id":"hq-cv-td3","type":"tracks"}
 {"created_at":"2026-03-03T18:03:13Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-jfa","issue_id":"hq-cv-td3","type":"tracks"}
 {"created_at":"2026-03-03T18:03:14Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-kgn","issue_id":"hq-cv-td3","type":"tracks"}
 {"created_at":"2026-03-03T18:03:13Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-lqf","issue_id":"hq-cv-td3","type":"tracks"}
+{"created_at":"2026-03-05T03:23:55Z","created_by":"mayor","depends_on_id":"ghostty-qsv","issue_id":"hq-cv-td3","type":"tracks"}
 {"created_at":"2026-03-03T18:03:13Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-rl2","issue_id":"hq-cv-td3","type":"tracks"}
 {"created_at":"2026-03-03T18:03:14Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-tx5","issue_id":"hq-cv-td3","type":"tracks"}
 {"created_at":"2026-03-03T18:03:13Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-w61","issue_id":"hq-cv-td3","type":"tracks"}
