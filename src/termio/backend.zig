@@ -84,6 +84,14 @@ pub const Backend = union(Kind) {
         }
     }
 
+    /// Write data directly to the backend. This is a synchronous write
+    /// that bypasses the mailbox queue system.
+    pub fn write(self: *Backend, data: []const u8) !void {
+        switch (self.*) {
+            .exec => |*exec| try exec.write(data),
+        }
+    }
+
     pub fn childExitedAbnormally(
         self: *Backend,
         gpa: Allocator,
