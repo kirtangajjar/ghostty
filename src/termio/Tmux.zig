@@ -107,6 +107,17 @@ pub fn childExitedAbnormally(
     log.debug("Tmux.childExitedAbnormally called (stub)", .{});
 }
 
+/// Write data directly to the backend. This is a synchronous write
+/// that bypasses the async queue system. This is useful for
+/// cases where we need to write data immediately without going
+/// through the mailbox.
+pub fn write(self: *Tmux, data: []const u8) !void {
+    _ = self;
+    _ = data;
+    log.debug("Tmux.write called (stub)", .{});
+    // TODO: Implement tmux write
+}
+
 /// Configuration for the tmux backend.
 pub const Config = struct {
     // TODO: Add tmux-specific configuration options
