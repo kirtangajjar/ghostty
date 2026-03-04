@@ -463,12 +463,6 @@ pub fn init(
     app: *App,
     rt_app: *apprt.runtime.App,
     rt_surface: *apprt.runtime.Surface,
-    overrides: struct {
-        command: ?configpkg.Command = null,
-        working_directory: ?[:0]const u8 = null,
-
-        pub const none: @This() = .{};
-    },
 ) !void {
     // Apply our conditional state. If we fail to apply the conditional state
     // then we log and attempt to move forward with the old config.
@@ -614,23 +608,12 @@ pub fn init(
 
     // The command we're going to execute
     const command: ?configpkg.Command = command: {
-        if (overrides.command) |command| {
-            break :command command;
-        }
         if (app.first) {
             if (config.@"initial-command") |command| {
                 break :command command;
             }
         }
         break :command config.command;
-    };
-
-    // The working directory to execute the command in.
-    const working_directory: ?[]const u8 = wd: {
-        if (overrides.working_directory) |working_directory| {
-            break :wd working_directory;
-        }
-        break :wd config.@"working-directory";
     };
 
     // Start our IO implementation
