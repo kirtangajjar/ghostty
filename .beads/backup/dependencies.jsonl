@@ -18,6 +18,7 @@
 {"created_at":"2026-03-03T21:02:10Z","created_by":"Kirtan Gajjar","depends_on_id":"ghostty-wisp-wisp-bd8c","issue_id":"ghostty-a11","type":"blocks"}
 {"created_at":"2026-03-03T21:32:34Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-l5myp","issue_id":"ghostty-a5re","type":"parent-child"}
 {"created_at":"2026-03-04T02:26:25Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-194m4","issue_id":"ghostty-bvz1","type":"parent-child"}
+{"created_at":"2026-03-05T03:21:20Z","created_by":"mayor","depends_on_id":"ghostty-e27","issue_id":"ghostty-c8a","type":"discovered-from"}
 {"created_at":"2026-03-04T02:28:29Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-expj4","issue_id":"ghostty-dgbg","type":"parent-child"}
 {"created_at":"2026-03-04T01:52:10Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-idvk","issue_id":"ghostty-e5q3","type":"parent-child"}
 {"created_at":"2026-03-04T01:50:27Z","created_by":"ghostty/witness","depends_on_id":"ghostty-wisp-wisp-hrm8","issue_id":"ghostty-ebxx","type":"parent-child"}
