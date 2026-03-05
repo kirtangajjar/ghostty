@@ -3704,6 +3704,26 @@ term: []const u8 = "xterm-ghostty",
 /// Available since: 1.2.0
 @"async-backend": AsyncBackend = .auto,
 
+/// The backend to use for terminal I/O. This determines how the terminal
+/// communicates with the underlying process.
+///
+/// Valid values are:
+///
+///   * `exec` - Use the default exec backend with a PTY. This is the
+///     standard terminal behavior where Ghostty spawns and manages a
+///     subprocess with a pseudo-terminal.
+///   * `tmux` - Use the tmux control mode backend. This connects to a
+///     tmux session instead of spawning a direct subprocess. This is
+///     useful for integrating with existing tmux sessions.
+///
+/// When using the tmux backend, PTY allocation is bypassed and the
+/// terminal communicates directly with tmux control mode.
+///
+/// Changing this value requires a full application restart to take effect.
+///
+/// Available since: 1.5.0
+@"terminal-backend": TerminalBackend = .exec,
+
 /// Control the auto-update functionality of Ghostty. This is only supported
 /// on macOS currently, since Linux builds are distributed via package
 /// managers that are not centrally controlled by Ghostty.
@@ -9433,6 +9453,14 @@ pub const AsyncBackend = enum {
     auto,
     epoll,
     io_uring,
+};
+
+/// See terminal-backend
+pub const TerminalBackend = enum {
+    /// Use the default exec backend (PTY)
+    exec,
+    /// Use tmux control mode backend
+    tmux,
 };
 
 /// See auto-updates
