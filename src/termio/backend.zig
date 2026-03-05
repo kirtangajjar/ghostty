@@ -188,11 +188,9 @@ test "Backend: Config union type holds tmux config" {
 }
 
 test "Backend: ThreadData union type holds tmux ThreadData" {
-    // Test that ThreadData union can hold Tmux.ThreadData
-    const alloc = testing.allocator;
-
-    var thread_data = ThreadData{ .tmux = .{} };
-    defer thread_data.deinit(alloc);
+    // Constructing a real Tmux.ThreadData requires active runtime resources.
+    // Here we only verify the union tag/value path compiles for tmux.
+    const thread_data: ThreadData = .{ .tmux = undefined };
 
     // Verify thread data kind
     try testing.expectEqual(Kind.tmux, @as(Kind, thread_data));
