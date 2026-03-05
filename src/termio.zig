@@ -37,4 +37,5 @@ test {
     @import("std").testing.refAllDecls(@This());
 
     _ = @import("termio/shell_integration.zig");
+    _ = @import("termio/tmux/test_harness.zig");
 }
