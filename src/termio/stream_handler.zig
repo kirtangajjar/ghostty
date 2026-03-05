@@ -444,7 +444,7 @@ pub const StreamHandler = struct {
                         },
 
                         .windows => {
-                            // TODO
+                            self.surfaceMessageWriter(.tmux_windows_changed);
                         },
 
                         .pane_dirty => |pane_id| {

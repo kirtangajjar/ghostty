@@ -112,6 +112,8 @@ pub const Message = union(enum) {
     /// The usize value is the pane ID.
     pane_dirty: usize,
 
+    /// The set of tmux windows has changed and UI state should refresh.
+    tmux_windows_changed,
     pub const ReportTitleStyle = enum {
         csi_21_t,
 

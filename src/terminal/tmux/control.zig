@@ -557,6 +557,21 @@ pub const Notification = union(enum) {
     }
 };
 
+/// Format tmux key input for control mode.
+///
+/// The output format is: `%key %<pane-id> <hex-encoded-bytes>`
+pub fn write(
+    writer: *std.Io.Writer,
+    pane_id: usize,
+    data: []const u8,
+) std.Io.Writer.Error!void {
+    try writer.print("%key %{d} ", .{pane_id});
+
+    for (data) |byte| {
+        try writer.print("{X:0>2}", .{byte});
+    }
+}
+
 test "tmux begin/end empty" {
     const testing = std.testing;
     const alloc = testing.allocator;
@@ -722,4 +737,29 @@ test "tmux client-session-changed" {
     try testing.expectEqualStrings("/dev/pts/1", n.client_session_changed.client);
     try testing.expectEqual(2, n.client_session_changed.session_id);
     try testing.expectEqualStrings("mysession", n.client_session_changed.name);
+}
+
+test "tmux write format" {
+    const testing = std.testing;
+
+    {
+        var buf: [64]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&buf);
+        try write(&writer, 0, "A");
+        try testing.expectEqualStrings("%key %0 41", buf[0..writer.end]);
+    }
+
+    {
+        var buf: [64]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&buf);
+        try write(&writer, 42, "Hello");
+        try testing.expectEqualStrings("%key %42 48656C6C6F", buf[0..writer.end]);
+    }
+
+    {
+        var buf: [64]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&buf);
+        try write(&writer, 123, "x");
+        try testing.expectEqualStrings("%key %123 78", buf[0..writer.end]);
+    }
 }

@@ -1159,9 +1159,13 @@ pub fn handleMessage(self: *Surface, msg: Message) !void {
                 .{ .selected = v },
             );
         },
-
         .pane_dirty => |pane_id| {
             log.debug("received pane_dirty message for pane id={d}", .{pane_id});
+            try self.queueRender();
+        },
+
+        .tmux_windows_changed => {
+            log.debug("received tmux_windows_changed message", .{});
             try self.queueRender();
         },
     }
