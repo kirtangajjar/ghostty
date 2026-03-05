@@ -627,31 +627,41 @@ pub fn init(
         // don't leak GHOSTTY_LOG to any subprocesses
         env.remove("GHOSTTY_LOG");
 
-        // Initialize our IO backend
-        var io_exec = try termio.Exec.init(alloc, .{
-            .command = command,
-            .env = env,
-            .env_override = config.env,
-            .shell_integration = config.@"shell-integration",
-            .shell_integration_features = config.@"shell-integration-features",
-            .cursor_blink = config.@"cursor-style-blink",
-            .working_directory = config.@"working-directory",
-            .resources_dir = global_state.resources_dir.host(),
-            .term = config.term,
-            .rt_pre_exec_info = .init(config),
-            .rt_post_fork_info = .init(config),
-        });
-        errdefer io_exec.deinit();
-
-        // Initialize our IO mailbox
+        // Initialize our IO mailbox (needed for all backends)
         var io_mailbox = try termio.Mailbox.initSPSC(alloc);
         errdefer io_mailbox.deinit(alloc);
+
+        // Initialize our IO backend based on configuration
+        const backend: termio.backend.Backend = switch (config.@"terminal-backend") {
+            .exec => backend: {
+                // Initialize exec backend with PTY
+                const io_exec = try termio.Exec.init(alloc, .{
+                    .command = command,
+                    .env = env,
+                    .env_override = config.env,
+                    .shell_integration = config.@"shell-integration",
+                    .shell_integration_features = config.@"shell-integration-features",
+                    .cursor_blink = config.@"cursor-style-blink",
+                    .working_directory = config.@"working-directory",
+                    .resources_dir = global_state.resources_dir.host(),
+                    .term = config.term,
+                    .rt_pre_exec_info = .init(config),
+                    .rt_post_fork_info = .init(config),
+                });
+                break :backend .{ .exec = io_exec };
+            },
+            .tmux => backend: {
+                // Initialize tmux backend (bypasses PTY allocation)
+                const io_tmux = try termio.Tmux.init(alloc, .{});
+                break :backend .{ .tmux = io_tmux };
+            },
+        };
 
         try termio.Termio.init(&self.io, alloc, .{
             .size = size,
             .full_config = config,
             .config = try termio.Termio.DerivedConfig.init(alloc, config),
-            .backend = .{ .exec = io_exec },
+            .backend = backend,
             .mailbox = io_mailbox,
             .renderer_state = &self.renderer_state,
             .renderer_wakeup = render_thread.wakeup,
