@@ -207,3 +207,222 @@ test "Backend: Kind enum includes tmux" {
     _ = exec_kind;
     _ = tmux_kind;
 }
+
+// ============================================================================
+// Resize/Focus Behavior Tests (ghostty-1i4.10)
+// ============================================================================
+
+test "Backend: tmux focusGained with focused=true does not error" {
+    // Test that focusGained can be called with focused=true on Tmux backend
+    const alloc = testing.allocator;
+    const config = Config{ .tmux = .{} };
+
+    var backend = Backend{
+        .tmux = try termio.Tmux.init(alloc, config.tmux),
+    };
+    defer backend.deinit();
+
+    // Create stub ThreadData - focusGained should not crash
+    var thread_data: ThreadData = .{ .tmux = undefined };
+
+    // focusGained with focused=true should succeed (no-op in stub)
+    try backend.focusGained(&thread_data, true);
+}
+
+test "Backend: tmux focusGained with focused=false does not error" {
+    // Test that focusGained can be called with focused=false on Tmux backend
+    const alloc = testing.allocator;
+    const config = Config{ .tmux = .{} };
+
+    var backend = Backend{
+        .tmux = try termio.Tmux.init(alloc, config.tmux),
+    };
+    defer backend.deinit();
+
+    // Create stub ThreadData - focusGained should not crash
+    var thread_data: ThreadData = .{ .tmux = undefined };
+
+    // focusGained with focused=false should succeed (no-op in stub)
+    try backend.focusGained(&thread_data, false);
+}
+
+test "Backend: tmux focusGained toggle does not error" {
+    // Test that focusGained can be toggled between focused/unfocused
+    const alloc = testing.allocator;
+    const config = Config{ .tmux = .{} };
+
+    var backend = Backend{
+        .tmux = try termio.Tmux.init(alloc, config.tmux),
+    };
+    defer backend.deinit();
+
+    // Create stub ThreadData
+    var thread_data: ThreadData = .{ .tmux = undefined };
+
+    // Toggle focus state multiple times
+    try backend.focusGained(&thread_data, true);
+    try backend.focusGained(&thread_data, false);
+    try backend.focusGained(&thread_data, true);
+    try backend.focusGained(&thread_data, false);
+}
+
+test "Backend: tmux resize stores grid size" {
+    // Test that resize correctly stores grid size in Tmux backend
+    const alloc = testing.allocator;
+    const config = Config{ .tmux = .{} };
+
+    var backend = Backend{
+        .tmux = try termio.Tmux.init(alloc, config.tmux),
+    };
+    defer backend.deinit();
+
+    // Resize with valid grid size
+    const grid_size: renderer.GridSize = .{
+        .columns = 80,
+        .rows = 24,
+    };
+    const screen_size: renderer.ScreenSize = .{
+        .width = 800,
+        .height = 600,
+    };
+
+    try backend.resize(grid_size, screen_size);
+
+    // Verify the size was stored in the subprocess
+    // GridSize.Unit is u16 (CellCountInt)
+    try testing.expectEqual(@as(renderer.GridSize.Unit, 80), backend.tmux.subprocess.grid_size.columns);
+    try testing.expectEqual(@as(renderer.GridSize.Unit, 24), backend.tmux.subprocess.grid_size.rows);
+    try testing.expectEqual(@as(u32, 800), backend.tmux.subprocess.screen_size.width);
+    try testing.expectEqual(@as(u32, 600), backend.tmux.subprocess.screen_size.height);
+}
+
+test "Backend: tmux resize multiple times" {
+    // Test that resize can be called multiple times with different sizes
+    const alloc = testing.allocator;
+    const config = Config{ .tmux = .{} };
+
+    var backend = Backend{
+        .tmux = try termio.Tmux.init(alloc, config.tmux),
+    };
+    defer backend.deinit();
+
+    // First resize
+    try backend.resize(.{ .columns = 80, .rows = 24 }, .{ .width = 800, .height = 600 });
+    try testing.expectEqual(@as(renderer.GridSize.Unit, 80), backend.tmux.subprocess.grid_size.columns);
+    try testing.expectEqual(@as(renderer.GridSize.Unit, 24), backend.tmux.subprocess.grid_size.rows);
+
+    // Second resize - larger
+    try backend.resize(.{ .columns = 120, .rows = 40 }, .{ .width = 1200, .height = 800 });
+    try testing.expectEqual(@as(renderer.GridSize.Unit, 120), backend.tmux.subprocess.grid_size.columns);
+    try testing.expectEqual(@as(renderer.GridSize.Unit, 40), backend.tmux.subprocess.grid_size.rows);
+
+    // Third resize - smaller
+    try backend.resize(.{ .columns = 40, .rows = 10 }, .{ .width = 400, .height = 200 });
+    try testing.expectEqual(@as(renderer.GridSize.Unit, 40), backend.tmux.subprocess.grid_size.columns);
+    try testing.expectEqual(@as(renderer.GridSize.Unit, 10), backend.tmux.subprocess.grid_size.rows);
+}
+
+test "Backend: tmux resize with zero columns" {
+    // Test that resize handles zero columns gracefully
+    const alloc = testing.allocator;
+    const config = Config{ .tmux = .{} };
+
+    var backend = Backend{
+        .tmux = try termio.Tmux.init(alloc, config.tmux),
+    };
+    defer backend.deinit();
+
+    // Resize with zero columns should still work (edge case handling)
+    const grid_size: renderer.GridSize = .{
+        .columns = 0,
+        .rows = 24,
+    };
+    const screen_size: renderer.ScreenSize = .{
+        .width = 0,
+        .height = 600,
+    };
+
+    try backend.resize(grid_size, screen_size);
+    try testing.expectEqual(@as(renderer.GridSize.Unit, 0), backend.tmux.subprocess.grid_size.columns);
+}
+
+test "Backend: tmux resize with large dimensions" {
+    // Test that resize handles large dimensions
+    const alloc = testing.allocator;
+    const config = Config{ .tmux = .{} };
+
+    var backend = Backend{
+        .tmux = try termio.Tmux.init(alloc, config.tmux),
+    };
+    defer backend.deinit();
+
+    // Resize with large dimensions
+    const grid_size: renderer.GridSize = .{
+        .columns = 1000,
+        .rows = 500,
+    };
+    const screen_size: renderer.ScreenSize = .{
+        .width = 10000,
+        .height = 5000,
+    };
+
+    try backend.resize(grid_size, screen_size);
+    try testing.expectEqual(@as(renderer.GridSize.Unit, 1000), backend.tmux.subprocess.grid_size.columns);
+    try testing.expectEqual(@as(renderer.GridSize.Unit, 500), backend.tmux.subprocess.grid_size.rows);
+}
+
+test "Backend: tmux initTerminal calls resize with terminal dimensions" {
+    // Test that initTerminal sets up initial terminal size
+    const alloc = testing.allocator;
+    const config = Config{ .tmux = .{} };
+
+    var backend = Backend{
+        .tmux = try termio.Tmux.init(alloc, config.tmux),
+    };
+    defer backend.deinit();
+
+    // Create a stub terminal with dimensions
+    var term: terminal.Terminal = undefined;
+    term.cols = 132;
+    term.rows = 43;
+    term.width_px = 1320;
+    term.height_px = 860;
+
+    // Initialize terminal - should set size
+    backend.initTerminal(&term);
+
+    // Verify dimensions were stored
+    // GridSize.Unit is u16 (CellCountInt), same as terminal.size
+    try testing.expectEqual(@as(renderer.GridSize.Unit, 132), backend.tmux.subprocess.grid_size.columns);
+    try testing.expectEqual(@as(renderer.GridSize.Unit, 43), backend.tmux.subprocess.grid_size.rows);
+    try testing.expectEqual(@as(u32, 1320), backend.tmux.subprocess.screen_size.width);
+    try testing.expectEqual(@as(u32, 860), backend.tmux.subprocess.screen_size.height);
+}
+
+test "Backend: tmux resize followed by initTerminal overwrites" {
+    // Test that initTerminal after resize uses terminal dimensions
+    const alloc = testing.allocator;
+    const config = Config{ .tmux = .{} };
+
+    var backend = Backend{
+        .tmux = try termio.Tmux.init(alloc, config.tmux),
+    };
+    defer backend.deinit();
+
+    // First resize manually
+    try backend.resize(.{ .columns = 80, .rows = 24 }, .{ .width = 800, .height = 600 });
+    try testing.expectEqual(@as(renderer.GridSize.Unit, 80), backend.tmux.subprocess.grid_size.columns);
+
+    // Then initTerminal with different dimensions
+    var term: terminal.Terminal = undefined;
+    term.cols = 100;
+    term.rows = 30;
+    term.width_px = 1000;
+    term.height_px = 600;
+
+    backend.initTerminal(&term);
+
+    // Should have terminal dimensions now
+    try testing.expectEqual(@as(renderer.GridSize.Unit, 100), backend.tmux.subprocess.grid_size.columns);
+    try testing.expectEqual(@as(renderer.GridSize.Unit, 30), backend.tmux.subprocess.grid_size.rows);
+}
