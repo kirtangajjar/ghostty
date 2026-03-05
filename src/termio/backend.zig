@@ -161,7 +161,6 @@ fn stubTmuxRuntimeThreadData() termio.Termio.ThreadData {
         .mailbox = undefined,
     };
 }
-
 test "Backend: tmux init and deinit lifecycle" {
     // Test that Backend union can hold Tmux and be deinitialized
     const alloc = testing.allocator;
