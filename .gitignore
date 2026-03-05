@@ -30,3 +30,4 @@ vgcore.*
 .runtime/
 .claude/
 .logs/
+dolt/
