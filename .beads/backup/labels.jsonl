@@ -8,6 +8,7 @@
 {"issue_id":"ghostty-8j8","label":"phase-3"}
 {"issue_id":"ghostty-a11","label":"phase-1"}
 {"issue_id":"ghostty-a2l","label":"phase-2"}
+{"issue_id":"ghostty-ar2","label":"tech-debt"}
 {"issue_id":"ghostty-e27","label":"phase-1"}
 {"issue_id":"ghostty-gth","label":"phase-4"}
 {"issue_id":"ghostty-hbs","label":"phase-4"}
@@ -15,6 +16,7 @@
 {"issue_id":"ghostty-kgn","label":"phase-5"}
 {"issue_id":"ghostty-lqf","label":"phase-3"}
 {"issue_id":"ghostty-polecat-dust","label":"gt:agent"}
+{"issue_id":"ghostty-polecat-shiny","label":"gt:agent"}
 {"issue_id":"ghostty-rl2","label":"phase-4"}
 {"issue_id":"ghostty-tx5","label":"phase-2"}
 {"issue_id":"ghostty-w61","label":"phase-2"}
