@@ -168,6 +168,11 @@ search: ?Search = null,
 /// Used to rate limit BEL handling.
 last_bell_time: ?std.time.Instant = null,
 
+/// Tracks if a tmux pane render is pending. Used to coalesce
+/// multiple pane_dirty messages that arrive in quick succession
+/// into a single render request.
+tmux_pane_render_pending: bool = false,
+
 /// The effect of an input event. This can be used by callers to take
 /// the appropriate action after an input event. For example, key
 /// input can be forwarded to the OS for further processing if it
@@ -953,6 +958,15 @@ pub fn needsConfirmQuit(self: *Surface) bool {
 /// Called from the app thread to handle mailbox messages to our specific
 /// surface.
 pub fn handleMessage(self: *Surface, msg: Message) !void {
+    // Clear the tmux pane render pending flag for any non-pane_dirty message.
+    // This allows the next batch of pane_dirty messages to trigger a new render.
+    // When tmux sends a window-change event, multiple pane_dirty messages may
+    // arrive in quick succession - we coalesce them into a single render request.
+    // Once we see a different message type, we know the batch is complete.
+    if (msg != .pane_dirty) {
+        self.tmux_pane_render_pending = false;
+    }
+
     switch (msg) {
         .change_config => |config| try self.updateConfig(config),
 
@@ -1161,6 +1175,16 @@ pub fn handleMessage(self: *Surface, msg: Message) !void {
         },
         .pane_dirty => |pane_id| {
             log.debug("received pane_dirty message for pane id={d}", .{pane_id});
+
+            // Coalesce multiple pane_dirty messages from tmux. When multiple
+            // panes change in a window-change event, we only need one render.
+            // Skip queuing if we've already requested a render for tmux panes.
+            if (self.tmux_pane_render_pending) {
+                log.debug("coalescing pane_dirty render (pane id={d})", .{pane_id});
+                return;
+            }
+
+            self.tmux_pane_render_pending = true;
             try self.queueRender();
         },
 
