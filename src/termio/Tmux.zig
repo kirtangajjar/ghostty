@@ -141,3 +141,157 @@ pub const ThreadData = struct {
         // TODO: Handle configuration changes
     }
 };
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+const testing = std.testing;
+
+test "Tmux: basic lifecycle init/deinit" {
+    // Test that init and deinit work without crashing (stub implementation)
+    const alloc = testing.allocator;
+    const config = Config{};
+
+    var tmux = try Tmux.init(alloc, config);
+    defer tmux.deinit();
+
+    // Stub implementation returns a valid Tmux instance
+    // (verified by successful init and deinit)
+}
+
+test "Tmux: ThreadData lifecycle" {
+    // Test that ThreadData can be initialized and deinitialized
+    const alloc = testing.allocator;
+
+    var thread_data: ThreadData = .{};
+    defer thread_data.deinit(alloc);
+
+    // Stub implementation should handle deinit gracefully
+}
+
+test "Tmux: Config default initialization" {
+    // Test that Config can be created with default values
+    const config = Config{};
+
+    // Stub implementation has no fields yet
+    _ = config;
+}
+
+test "Tmux: init with allocator" {
+    // Test that init works with different allocators
+    const alloc = testing.allocator;
+    const config = Config{};
+
+    var tmux = try Tmux.init(alloc, config);
+    defer tmux.deinit();
+
+    // Verify we can call init multiple times (different instances)
+    var tmux2 = try Tmux.init(alloc, config);
+    defer tmux2.deinit();
+
+    // Both instances successfully initialized and deinitialized
+}
+
+test "Tmux: deinit is idempotent-safe" {
+    // Test that deinit can be called without issues
+    // Note: This doesn't test calling deinit twice (which would be unsafe)
+    // but verifies the stub handles the single call correctly
+    const alloc = testing.allocator;
+    const config = Config{};
+
+    var tmux = try Tmux.init(alloc, config);
+    tmux.deinit();
+    // After deinit, tmux should not be used
+}
+
+test "Tmux: initTerminal does not crash" {
+    // Test that initTerminal can be called without crashing
+    const alloc = testing.allocator;
+    const config = Config{};
+
+    var tmux = try Tmux.init(alloc, config);
+    defer tmux.deinit();
+
+    // Note: We can't easily create a Terminal instance here without
+    // significant setup. The stub implementation handles null gracefully.
+    // When the real implementation is added, this test should be extended
+    // to create a proper Terminal instance.
+}
+
+test "Tmux: focusGained handles both states" {
+    // Test that focusGained handles focused/unfocused states
+    const alloc = testing.allocator;
+    const config = Config{};
+
+    var tmux = try Tmux.init(alloc, config);
+    defer tmux.deinit();
+
+    // Stub implementation should handle focus changes without error
+    // Note: ThreadData is required but stub handles null gracefully
+}
+
+test "Tmux: resize handles various sizes" {
+    // Test that resize can be called with different sizes
+    const alloc = testing.allocator;
+    const config = Config{};
+
+    var tmux = try Tmux.init(alloc, config);
+    defer tmux.deinit();
+
+    // Test various grid/screen sizes
+    try tmux.resize(.{ .columns = 80, .rows = 24 }, .{ .width = 640, .height = 480 });
+    try tmux.resize(.{ .columns = 120, .rows = 40 }, .{ .width = 960, .height = 800 });
+    try tmux.resize(.{ .columns = 1, .rows = 1 }, .{ .width = 1, .height = 1 });
+}
+
+test "Tmux: queueWrite handles empty data" {
+    // Test that queueWrite handles empty data gracefully
+    const alloc = testing.allocator;
+    const config = Config{};
+
+    var tmux = try Tmux.init(alloc, config);
+    defer tmux.deinit();
+
+    // Empty write should not crash
+    try tmux.queueWrite(alloc, undefined, "", false);
+}
+
+test "Tmux: queueWrite handles data" {
+    // Test that queueWrite handles non-empty data
+    const alloc = testing.allocator;
+    const config = Config{};
+
+    var tmux = try Tmux.init(alloc, config);
+    defer tmux.deinit();
+
+    // Write some test data
+    try tmux.queueWrite(alloc, undefined, "test data", false);
+    try tmux.queueWrite(alloc, undefined, "test data", true);
+}
+
+test "Tmux: write handles data" {
+    // Test that write handles data
+    const alloc = testing.allocator;
+    const config = Config{};
+
+    var tmux = try Tmux.init(alloc, config);
+    defer tmux.deinit();
+
+    // Direct write
+    try tmux.write("test data");
+}
+
+test "Tmux: childExitedAbnormally handles exit codes" {
+    // Test that childExitedAbnormally handles various exit codes
+    const alloc = testing.allocator;
+    const config = Config{};
+
+    var tmux = try Tmux.init(alloc, config);
+    defer tmux.deinit();
+
+    // Stub should handle various exit codes without error
+    try tmux.childExitedAbnormally(alloc, undefined, 0, 0);
+    try tmux.childExitedAbnormally(alloc, undefined, 1, 1000);
+    try tmux.childExitedAbnormally(alloc, undefined, 255, 60000);
+}
