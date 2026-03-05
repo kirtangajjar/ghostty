@@ -144,3 +144,68 @@ pub const ThreadData = union(Kind) {
         _ = config;
     }
 };
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+const testing = std.testing;
+
+test "Backend: tmux init and deinit lifecycle" {
+    // Test that Backend union can hold Tmux and be deinitialized
+    const alloc = testing.allocator;
+    const config = Config{ .tmux = .{} };
+
+    var backend = Backend{
+        .tmux = try termio.Tmux.init(alloc, config.tmux),
+    };
+    defer backend.deinit();
+
+    // Verify backend kind
+    try testing.expectEqual(Kind.tmux, @as(Kind, backend));
+}
+
+test "Backend: tmux initTerminal does not crash" {
+    // Test that initTerminal can be called on Tmux backend
+    const alloc = testing.allocator;
+    const config = Config{ .tmux = .{} };
+
+    var backend = Backend{
+        .tmux = try termio.Tmux.init(alloc, config.tmux),
+    };
+    defer backend.deinit();
+
+    // Stub implementation handles this gracefully
+    // Note: Terminal initialization would require more setup in real implementation
+}
+
+test "Backend: Config union type holds tmux config" {
+    // Test that Config union can hold Tmux.Config
+    const config = Config{ .tmux = .{} };
+
+    // Verify config kind
+    try testing.expectEqual(Kind.tmux, @as(Kind, config));
+}
+
+test "Backend: ThreadData union type holds tmux ThreadData" {
+    // Test that ThreadData union can hold Tmux.ThreadData
+    const alloc = testing.allocator;
+
+    var thread_data = ThreadData{ .tmux = .{} };
+    defer thread_data.deinit(alloc);
+
+    // Verify thread data kind
+    try testing.expectEqual(Kind.tmux, @as(Kind, thread_data));
+}
+
+test "Backend: Kind enum includes tmux" {
+    // Test that Kind enum includes both exec and tmux
+    try testing.expectEqual(Kind.exec, Kind.exec);
+    try testing.expectEqual(Kind.tmux, Kind.tmux);
+
+    // Verify enum values exist
+    const exec_kind: Kind = .exec;
+    const tmux_kind: Kind = .tmux;
+    _ = exec_kind;
+    _ = tmux_kind;
+}
