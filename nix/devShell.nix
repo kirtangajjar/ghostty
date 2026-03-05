@@ -22,6 +22,7 @@
   valgrind,
   #, vulkan-loader # unused
   vttest,
+  tmux,
   wabt,
   wasmtime,
   wraptest,
@@ -117,6 +118,7 @@ in
         parallel
         python3
         vttest
+        tmux
         hyperfine
 
         # wasm
