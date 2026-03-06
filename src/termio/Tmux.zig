@@ -94,11 +94,15 @@ pub fn threadEnter(
     var stream = xev.Stream.initFd(fds.write);
     errdefer stream.deinit();
 
-    // Start read thread
+    // Create viewer BEFORE spawning read thread so we can pass it
+    var viewer = try tmux_viewer.Viewer.init(alloc);
+    errdefer viewer.deinit();
+
+    // Start read thread with viewer pointer
     const read_thread = try std.Thread.spawn(
         .{},
         ReadThread.threadMain,
-        .{ alloc, fds.read, io, pipe[0] },
+        .{ alloc, fds.read, io, pipe[0], &viewer },
     );
     read_thread.setName("io-tmux-reader") catch {};
 
@@ -109,11 +113,8 @@ pub fn threadEnter(
         .read_thread = read_thread,
         .read_thread_pipe = pipe[1],
         .read_thread_fd = fds.read,
-        .viewer = try tmux_viewer.Viewer.init(alloc),
+        .viewer = viewer,
     } };
-    errdefer {
-        td.backend.tmux.viewer.deinit();
-    }
 }
 
 pub fn threadExit(self: *Tmux, td: *termio.Termio.ThreadData) void {
@@ -518,7 +519,13 @@ const Subprocess = struct {
 
 /// Read thread implementation for tmux control mode.
 const ReadThread = struct {
-    fn threadMain(alloc: Allocator, fd: posix.fd_t, io: *termio.Termio, quit: posix.fd_t) void {
+    fn threadMain(
+        alloc: Allocator,
+        fd: posix.fd_t,
+        io: *termio.Termio,
+        quit: posix.fd_t,
+        viewer: *tmux_viewer.Viewer,
+    ) void {
         // Always close our end of the pipe when we exit.
         defer posix.close(quit);
 
@@ -579,7 +586,7 @@ const ReadThread = struct {
                 for (buf[0..n]) |byte| {
                     if (parser.put(byte) catch null) |notification| {
                         // Handle the notification
-                        handleNotification(io, &notification);
+                        handleNotification(io, viewer, &notification);
                     }
                 }
             }
@@ -604,7 +611,11 @@ const ReadThread = struct {
         }
     }
 
-    fn handleNotification(io: *termio.Termio, notification: *const tmux_control.Notification) void {
+    fn handleNotification(
+        io: *termio.Termio,
+        viewer: *tmux_viewer.Viewer,
+        notification: *const tmux_control.Notification,
+    ) void {
         switch (notification.*) {
             .output => |out| {
                 // Output from a tmux pane - process it
@@ -627,8 +638,41 @@ const ReadThread = struct {
                 // TODO: Signal the surface that tmux has exited
             },
             else => {
-                // Other notifications (session-changed, window-add, etc.)
-                log.debug("tmux notification: {s}", .{@tagName(notification.*)});
+                // Route all other notifications through the viewer
+                // This includes session-changed, window-add, layout-change, etc.
+                for (viewer.next(.{ .tmux = notification.* })) |action| {
+                    handleAction(io, action);
+                }
+            },
+        }
+    }
+
+    fn handleAction(io: *termio.Termio, action: tmux_viewer.Viewer.Action) void {
+        _ = io; // TODO: Will be used for routing actions to surface
+
+        switch (action) {
+            .exit => {
+                // tmux has closed the control mode connection
+                log.info("tmux viewer emitted exit action", .{});
+                // TODO: Signal the surface that tmux has exited
+            },
+            .command => |cmd| {
+                // Send a command to tmux
+                // Commands include trailing newline, so we can write directly
+                log.debug("tmux viewer command: {s}", .{cmd});
+                // TODO: Write command to tmux stdin
+                // This requires access to the write thread, which we don't have here.
+                // For now, log and continue. Commands will be handled differently.
+            },
+            .windows => |windows| {
+                // Windows changed - notify the surface
+                log.debug("tmux windows changed: {} windows", .{windows.len});
+                // TODO: Route to surface via mailbox
+            },
+            .pane_dirty => |pane_id| {
+                // A pane needs re-rendering
+                log.debug("tmux pane dirty: pane_id={}", .{pane_id});
+                // TODO: Route to surface via mailbox
             },
         }
     }
