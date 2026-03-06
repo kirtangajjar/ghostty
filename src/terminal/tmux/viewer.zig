@@ -215,6 +215,13 @@ pub const Viewer = struct {
         /// needs to be re-rendered. The `usize` value is the pane ID.
         pane_dirty: usize,
 
+        /// The active pane has changed within a window. This is emitted
+        /// when tmux sends `%window-pane-changed` notification.
+        active_pane: struct {
+            window_id: usize,
+            pane_id: usize,
+        },
+
         pub fn format(self: Action, writer: *std.Io.Writer) !void {
             const T = Action;
             const info = @typeInfo(T).@"union";
@@ -531,9 +538,22 @@ pub const Viewer = struct {
                 return self.defunct();
             },
 
-            // The active pane changed. We don't care about this because
-            // we handle our own focus.
-            .window_pane_changed => {},
+            // The active pane changed within a window. Emit an action so
+            // the caller can track which pane is active.
+            .window_pane_changed => |info| {
+                var arena = self.action_arena.promote(self.alloc);
+                defer self.action_arena = arena.state;
+
+                actions.append(
+                    arena.allocator(),
+                    .{ .active_pane = .{
+                        .window_id = info.window_id,
+                        .pane_id = info.pane_id,
+                    } },
+                ) catch {
+                    log.warn("failed to append active_pane action", .{});
+                };
+            },
 
             // We ignore this one. It means a session was created or
             // destroyed. If it was our own session we will get an exit
