@@ -151,6 +151,17 @@ pub const ThreadData = union(Kind) {
 
 const testing = std.testing;
 
+fn stubTmuxRuntimeThreadData() termio.Termio.ThreadData {
+    return .{
+        .alloc = testing.allocator,
+        .loop = undefined,
+        .renderer_state = undefined,
+        .surface_mailbox = undefined,
+        .backend = .{ .tmux = undefined },
+        .mailbox = undefined,
+    };
+}
+
 test "Backend: tmux init and deinit lifecycle" {
     // Test that Backend union can hold Tmux and be deinitialized
     const alloc = testing.allocator;
@@ -223,7 +234,7 @@ test "Backend: tmux focusGained with focused=true does not error" {
     defer backend.deinit();
 
     // Create stub ThreadData - focusGained should not crash
-    var thread_data: ThreadData = .{ .tmux = undefined };
+    var thread_data = stubTmuxRuntimeThreadData();
 
     // focusGained with focused=true should succeed (no-op in stub)
     try backend.focusGained(&thread_data, true);
@@ -240,7 +251,7 @@ test "Backend: tmux focusGained with focused=false does not error" {
     defer backend.deinit();
 
     // Create stub ThreadData - focusGained should not crash
-    var thread_data: ThreadData = .{ .tmux = undefined };
+    var thread_data = stubTmuxRuntimeThreadData();
 
     // focusGained with focused=false should succeed (no-op in stub)
     try backend.focusGained(&thread_data, false);
@@ -257,7 +268,7 @@ test "Backend: tmux focusGained toggle does not error" {
     defer backend.deinit();
 
     // Create stub ThreadData
-    var thread_data: ThreadData = .{ .tmux = undefined };
+    var thread_data = stubTmuxRuntimeThreadData();
 
     // Toggle focus state multiple times
     try backend.focusGained(&thread_data, true);
