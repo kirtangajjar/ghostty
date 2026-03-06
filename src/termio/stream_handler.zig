@@ -450,6 +450,11 @@ pub const StreamHandler = struct {
                         .pane_dirty => |pane_id| {
                             self.surfaceMessageWriter(.{ .pane_dirty = pane_id });
                         },
+
+                        .active_pane => |info| {
+                            log.debug("tmux active pane changed: window={} pane={}", .{ info.window_id, info.pane_id });
+                            // TODO: Route to surface via mailbox (ghostty-fvl)
+                        },
                     }
                 }
             },

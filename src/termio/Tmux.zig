@@ -94,11 +94,11 @@ pub fn threadEnter(
     var stream = xev.Stream.initFd(fds.write);
     errdefer stream.deinit();
 
-    // Create viewer BEFORE spawning read thread so we can pass it
+    // Create viewer before spawning thread so we can pass it to ReadThread
     var viewer = try tmux_viewer.Viewer.init(alloc);
     errdefer viewer.deinit();
 
-    // Start read thread with viewer pointer
+    // Start read thread, passing viewer pointer
     const read_thread = try std.Thread.spawn(
         .{},
         ReadThread.threadMain,
@@ -621,7 +621,7 @@ const ReadThread = struct {
                 // Output from a tmux pane - process it
                 // The output is already parsed and contains pane ID and data
                 log.debug("tmux output pane={} len={}", .{ out.pane_id, out.data.len });
-                // TODO: Route to the correct pane's terminal
+                // TODO: Route to the correct pane's terminal (ghostty-81a)
                 termio.Termio.processOutput(io, out.data);
             },
             .block_end => |data| {
@@ -635,12 +635,12 @@ const ReadThread = struct {
             .exit => {
                 // tmux is exiting
                 log.info("tmux control mode exiting", .{});
-                // TODO: Signal the surface that tmux has exited
+                // TODO: Signal the surface that tmux has exited (ghostty-vi0)
             },
             else => {
-                // Route all other notifications through the viewer
-                // This includes session-changed, window-add, layout-change, etc.
-                for (viewer.next(.{ .tmux = notification.* })) |action| {
+                // Route non-output notifications through the viewer
+                const actions = viewer.next(.{ .tmux = notification.* });
+                for (actions) |action| {
                     handleAction(io, action);
                 }
             },
@@ -648,31 +648,27 @@ const ReadThread = struct {
     }
 
     fn handleAction(io: *termio.Termio, action: tmux_viewer.Viewer.Action) void {
-        _ = io; // TODO: Will be used for routing actions to surface
-
+        _ = io; // TODO: Use for routing actions to surface (ghostty-81a, ghostty-vi0)
         switch (action) {
             .exit => {
-                // tmux has closed the control mode connection
-                log.info("tmux viewer emitted exit action", .{});
-                // TODO: Signal the surface that tmux has exited
+                log.info("viewer exit action", .{});
+                // TODO: Signal the surface that tmux has exited (ghostty-vi0)
             },
             .command => |cmd| {
-                // Send a command to tmux
-                // Commands include trailing newline, so we can write directly
-                log.debug("tmux viewer command: {s}", .{cmd});
-                // TODO: Write command to tmux stdin
-                // This requires access to the write thread, which we don't have here.
-                // For now, log and continue. Commands will be handled differently.
+                log.debug("viewer command action: {s}", .{std.mem.trim(u8, cmd, " \t\r\n")});
+                // TODO: Write command to tmux stdin (ghostty-pgj)
             },
             .windows => |windows| {
-                // Windows changed - notify the surface
-                log.debug("tmux windows changed: {} windows", .{windows.len});
+                log.debug("viewer windows action: {} windows", .{windows.len});
                 // TODO: Route to surface via mailbox
             },
             .pane_dirty => |pane_id| {
-                // A pane needs re-rendering
-                log.debug("tmux pane dirty: pane_id={}", .{pane_id});
-                // TODO: Route to surface via mailbox
+                log.debug("viewer pane_dirty action: pane {}", .{pane_id});
+                // TODO: Route to surface via mailbox (ghostty-81a)
+            },
+            .active_pane => |info| {
+                log.debug("viewer active_pane action: window {} pane {}", .{ info.window_id, info.pane_id });
+                // TODO: Track active pane in thread state (ghostty-fvl)
             },
         }
     }
