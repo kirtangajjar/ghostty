@@ -2343,3 +2343,347 @@ test "two pane flow with pane state" {
         },
     });
 }
+
+// ============================================================================
+// Render Coalescing Tests (ghostty-1i4.14)
+// ============================================================================
+//
+// These tests verify that pane_dirty actions are emitted correctly under
+// various event churn scenarios. The actual render coalescing (deduplicating
+// multiple render requests) happens in Surface.zig via the
+// tmux_pane_render_pending flag. These tests verify the pane_dirty emission
+// from the viewer layer.
+
+test "output produces pane_dirty for known pane" {
+    // Test that a single output event for a known pane produces a pane_dirty action
+    var viewer = try Viewer.init(testing.allocator);
+    defer viewer.deinit();
+
+    try testViewer(&viewer, &.{
+        // Initial startup
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{
+            .input = .{ .tmux = .{ .session_changed = .{
+                .id = 1,
+                .name = "test",
+            } } },
+            .contains_command = "display-message",
+        },
+        .{
+            .input = .{ .tmux = .{ .block_end = "3.5a" } },
+            .contains_command = "list-windows",
+        },
+        // Single pane window
+        .{
+            .input = .{ .tmux = .{
+                .block_end = "$0 @0 80 24 b7dd,80x24,0,0,0",
+            } },
+            .contains_tags = &.{ .windows, .command },
+        },
+        // Complete all capture-pane commands
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        // Output for pane 0 should produce pane_dirty
+        .{
+            .input = .{ .tmux = .{ .output = .{ .pane_id = 0, .data = "test output" } } },
+            .check = (struct {
+                fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(1, actions.len);
+                    try testing.expectEqual(0, actions[0].pane_dirty);
+                }
+            }).check,
+        },
+        .{
+            .input = .{ .tmux = .exit },
+            .contains_tags = &.{.exit},
+        },
+    });
+}
+
+test "multiple output events produce separate pane_dirty actions" {
+    // Test that multiple output events for different panes each produce
+    // their own pane_dirty action. This is the emission side of the
+    // render coalescing - the Surface layer will deduplicate these.
+    var viewer = try Viewer.init(testing.allocator);
+    defer viewer.deinit();
+
+    try testViewer(&viewer, &.{
+        // Initial startup
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{
+            .input = .{ .tmux = .{ .session_changed = .{
+                .id = 1,
+                .name = "test",
+            } } },
+            .contains_command = "display-message",
+        },
+        .{
+            .input = .{ .tmux = .{ .block_end = "3.5a" } },
+            .contains_command = "list-windows",
+        },
+        // Two-pane window
+        .{
+            .input = .{ .tmux = .{
+                .block_end = "$0 @0 80x24 b7dd,80x24,0,0[80x12,0,0,0,80x11,0,13,1]",
+            } },
+            .contains_tags = &.{ .windows, .command },
+            .check = (struct {
+                fn check(v: *Viewer, _: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(2, v.panes.count());
+                }
+            }).check,
+        },
+        // Complete all capture-pane commands for pane 0
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        // Complete all capture-pane commands for pane 1
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        // Output for pane 0
+        .{
+            .input = .{ .tmux = .{ .output = .{ .pane_id = 0, .data = "pane 0 output" } } },
+            .check = (struct {
+                fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(1, actions.len);
+                    try testing.expectEqual(0, actions[0].pane_dirty);
+                }
+            }).check,
+        },
+        // Output for pane 1
+        .{
+            .input = .{ .tmux = .{ .output = .{ .pane_id = 1, .data = "pane 1 output" } } },
+            .check = (struct {
+                fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(1, actions.len);
+                    try testing.expectEqual(1, actions[0].pane_dirty);
+                }
+            }).check,
+        },
+        // Another output for pane 0
+        .{
+            .input = .{ .tmux = .{ .output = .{ .pane_id = 0, .data = "more pane 0" } } },
+            .check = (struct {
+                fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(1, actions.len);
+                    try testing.expectEqual(0, actions[0].pane_dirty);
+                }
+            }).check,
+        },
+        .{
+            .input = .{ .tmux = .exit },
+            .contains_tags = &.{.exit},
+        },
+    });
+}
+
+test "rapid sequential outputs produce individual pane_dirty actions" {
+    // Test that rapid sequential output events (simulating tmux event churn)
+    // each produce their own pane_dirty action. The Surface layer is
+    // responsible for coalescing these into a single render.
+    var viewer = try Viewer.init(testing.allocator);
+    defer viewer.deinit();
+
+    try testViewer(&viewer, &.{
+        // Initial startup
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{
+            .input = .{ .tmux = .{ .session_changed = .{
+                .id = 1,
+                .name = "test",
+            } } },
+            .contains_command = "display-message",
+        },
+        .{
+            .input = .{ .tmux = .{ .block_end = "3.5a" } },
+            .contains_command = "list-windows",
+        },
+        // Single pane window
+        .{
+            .input = .{ .tmux = .{
+                .block_end = "$0 @0 80 24 b7dd,80x24,0,0,0",
+            } },
+            .contains_tags = &.{ .windows, .command },
+        },
+        // Complete all capture-pane commands
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        // Simulate rapid sequential output events (tmux event churn)
+        // Each should produce its own pane_dirty action
+        .{
+            .input = .{ .tmux = .{ .output = .{ .pane_id = 0, .data = "a" } } },
+            .check = (struct {
+                fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(1, actions.len);
+                    try testing.expectEqual(0, actions[0].pane_dirty);
+                }
+            }).check,
+        },
+        .{
+            .input = .{ .tmux = .{ .output = .{ .pane_id = 0, .data = "b" } } },
+            .check = (struct {
+                fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(1, actions.len);
+                    try testing.expectEqual(0, actions[0].pane_dirty);
+                }
+            }).check,
+        },
+        .{
+            .input = .{ .tmux = .{ .output = .{ .pane_id = 0, .data = "c" } } },
+            .check = (struct {
+                fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(1, actions.len);
+                    try testing.expectEqual(0, actions[0].pane_dirty);
+                }
+            }).check,
+        },
+        .{
+            .input = .{ .tmux = .exit },
+            .contains_tags = &.{.exit},
+        },
+    });
+}
+
+test "output for unknown pane produces no action" {
+    // Test that output for a pane that doesn't exist produces no action
+    // This verifies that pane_dirty is only emitted for known panes
+    var viewer = try Viewer.init(testing.allocator);
+    defer viewer.deinit();
+
+    try testViewer(&viewer, &.{
+        // Initial startup
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{
+            .input = .{ .tmux = .{ .session_changed = .{
+                .id = 1,
+                .name = "test",
+            } } },
+            .contains_command = "display-message",
+        },
+        .{
+            .input = .{ .tmux = .{ .block_end = "3.5a" } },
+            .contains_command = "list-windows",
+        },
+        // Single pane window with pane 0
+        .{
+            .input = .{ .tmux = .{
+                .block_end = "$0 @0 80 24 b7dd,80x24,0,0,0",
+            } },
+            .contains_tags = &.{ .windows, .command },
+        },
+        // Complete all capture-pane commands
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        // Output for non-existent pane 999 should produce no action
+        .{
+            .input = .{ .tmux = .{ .output = .{ .pane_id = 999, .data = "ignored" } } },
+            .check = (struct {
+                fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(0, actions.len);
+                }
+            }).check,
+        },
+        .{
+            .input = .{ .tmux = .exit },
+            .contains_tags = &.{.exit},
+        },
+    });
+}
+
+test "layout change after output still produces pane_dirty" {
+    // Test that after layout changes, output events still correctly
+    // produce pane_dirty actions for the new pane set
+    var viewer = try Viewer.init(testing.allocator);
+    defer viewer.deinit();
+
+    try testViewer(&viewer, &.{
+        // Initial startup
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{
+            .input = .{ .tmux = .{ .session_changed = .{
+                .id = 1,
+                .name = "test",
+            } } },
+            .contains_command = "display-message",
+        },
+        .{
+            .input = .{ .tmux = .{ .block_end = "3.5a" } },
+            .contains_command = "list-windows",
+        },
+        // Single pane window
+        .{
+            .input = .{ .tmux = .{
+                .block_end = "$0 @0 80 24 b7dd,80x24,0,0,0",
+            } },
+            .contains_tags = &.{ .windows, .command },
+        },
+        // Complete all capture-pane commands
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        // Output for pane 0
+        .{
+            .input = .{ .tmux = .{ .output = .{ .pane_id = 0, .data = "initial" } } },
+            .check = (struct {
+                fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(1, actions.len);
+                    try testing.expectEqual(0, actions[0].pane_dirty);
+                }
+            }).check,
+        },
+        // Layout change adds a new pane (pane 2)
+        .{
+            .input = .{ .tmux = .{ .layout_change = .{
+                .window_id = 0,
+                .layout = "e07b,80x24,0,0[80x12,0,0,0,80x11,0,13,2]",
+                .visible_layout = "e07b,80x24,0,0[80x12,0,0,0,80x11,0,13,2]",
+                .raw_flags = "*",
+            } } },
+            .contains_tags = &.{.windows},
+        },
+        // Complete capture-pane for new pane 2
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        // Output for the new pane 2 should work
+        .{
+            .input = .{ .tmux = .{ .output = .{ .pane_id = 2, .data = "new pane" } } },
+            .check = (struct {
+                fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(1, actions.len);
+                    try testing.expectEqual(2, actions[0].pane_dirty);
+                }
+            }).check,
+        },
+        // Output for pane 0 should still work
+        .{
+            .input = .{ .tmux = .{ .output = .{ .pane_id = 0, .data = "original" } } },
+            .check = (struct {
+                fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(1, actions.len);
+                    try testing.expectEqual(0, actions[0].pane_dirty);
+                }
+            }).check,
+        },
+        .{
+            .input = .{ .tmux = .exit },
+            .contains_tags = &.{.exit},
+        },
+    });
+}
