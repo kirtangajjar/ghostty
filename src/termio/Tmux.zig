@@ -329,7 +329,7 @@ pub const Config = struct {
 };
 
 /// Subprocess management for tmux client.
-const Subprocess = struct {
+pub const Subprocess = struct {
     const c = @cImport({
         @cInclude("errno.h");
         @cInclude("signal.h");
