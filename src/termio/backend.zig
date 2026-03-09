@@ -436,3 +436,278 @@ test "Backend: tmux resize followed by initTerminal overwrites" {
     try testing.expectEqual(@as(renderer.GridSize.Unit, 100), backend.tmux.subprocess.grid_size.columns);
     try testing.expectEqual(@as(renderer.GridSize.Unit, 30), backend.tmux.subprocess.grid_size.rows);
 }
+
+// ============================================================================
+// Config Parsing Tests (ghostty-1i4.12)
+// ============================================================================
+
+test "Backend: tmux config default values" {
+    // Test that default Config has all null/false values
+    const config = termio.Tmux.Config{};
+
+    try testing.expectEqual(@as(?[]const u8, null), config.session);
+    try testing.expectEqual(@as(?[]const u8, null), config.socket_path);
+    try testing.expectEqual(@as(bool, false), config.create_session);
+    try testing.expectEqual(@as(?[]const u8, null), config.command);
+    try testing.expectEqual(@as(?[]const u8, null), config.working_directory);
+}
+
+test "Backend: tmux config with session name" {
+    // Test that Config can be created with a session name
+    const alloc = testing.allocator;
+
+    const config = termio.Tmux.Config{
+        .session = "my-session",
+    };
+
+    try testing.expectEqualSlices(u8, "my-session", config.session.?);
+
+    // Test that Subprocess.init correctly stores the session name
+    var subprocess = try termio.Tmux.Subprocess.init(alloc, config);
+    defer subprocess.deinit();
+
+    try testing.expectEqualSlices(u8, "my-session", subprocess.session.?);
+
+    // Verify the session is passed as -t argument
+    var found_session_arg = false;
+    var found_session_value = false;
+    for (subprocess.args, 0..) |arg, i| {
+        if (std.mem.eql(u8, arg, "-t")) {
+            found_session_arg = true;
+            if (i + 1 < subprocess.args.len) {
+                if (std.mem.eql(u8, subprocess.args[i + 1], "my-session")) {
+                    found_session_value = true;
+                }
+            }
+        }
+    }
+    try testing.expect(found_session_arg);
+    try testing.expect(found_session_value);
+}
+
+test "Backend: tmux config with socket path" {
+    // Test that Config can be created with a socket path
+    const alloc = testing.allocator;
+
+    const config = termio.Tmux.Config{
+        .socket_path = "/tmp/tmux-socket",
+    };
+
+    try testing.expectEqualSlices(u8, "/tmp/tmux-socket", config.socket_path.?);
+
+    // Test that Subprocess.init correctly stores the socket path
+    var subprocess = try termio.Tmux.Subprocess.init(alloc, config);
+    defer subprocess.deinit();
+
+    try testing.expectEqualSlices(u8, "/tmp/tmux-socket", subprocess.socket_path.?);
+
+    // Verify the socket path is passed as -S argument
+    var found_socket_arg = false;
+    var found_socket_value = false;
+    for (subprocess.args, 0..) |arg, i| {
+        if (std.mem.eql(u8, arg, "-S")) {
+            found_socket_arg = true;
+            if (i + 1 < subprocess.args.len) {
+                if (std.mem.eql(u8, subprocess.args[i + 1], "/tmp/tmux-socket")) {
+                    found_socket_value = true;
+                }
+            }
+        }
+    }
+    try testing.expect(found_socket_arg);
+    try testing.expect(found_socket_value);
+}
+
+test "Backend: tmux config with create_session flag" {
+    // Test that Config can be created with create_session flag
+    const config = termio.Tmux.Config{
+        .create_session = true,
+    };
+
+    try testing.expectEqual(@as(bool, true), config.create_session);
+}
+
+test "Backend: tmux config with command" {
+    // Test that Config can be created with a command
+    const config = termio.Tmux.Config{
+        .command = "/bin/bash",
+    };
+
+    try testing.expectEqualSlices(u8, "/bin/bash", config.command.?);
+}
+
+test "Backend: tmux config with working_directory" {
+    // Test that Config can be created with a working directory
+    const config = termio.Tmux.Config{
+        .working_directory = "/home/user",
+    };
+
+    try testing.expectEqualSlices(u8, "/home/user", config.working_directory.?);
+}
+
+test "Backend: tmux config with all fields set" {
+    // Test that Config can be created with all fields set
+    const alloc = testing.allocator;
+
+    const config = termio.Tmux.Config{
+        .session = "test-session",
+        .socket_path = "/var/run/tmux.sock",
+        .create_session = true,
+        .command = "/usr/bin/zsh",
+        .working_directory = "/home/test",
+    };
+
+    try testing.expectEqualSlices(u8, "test-session", config.session.?);
+    try testing.expectEqualSlices(u8, "/var/run/tmux.sock", config.socket_path.?);
+    try testing.expectEqual(@as(bool, true), config.create_session);
+    try testing.expectEqualSlices(u8, "/usr/bin/zsh", config.command.?);
+    try testing.expectEqualSlices(u8, "/home/test", config.working_directory.?);
+
+    // Verify Subprocess.init handles all config fields
+    var subprocess = try termio.Tmux.Subprocess.init(alloc, config);
+    defer subprocess.deinit();
+
+    try testing.expectEqualSlices(u8, "test-session", subprocess.session.?);
+    try testing.expectEqualSlices(u8, "/var/run/tmux.sock", subprocess.socket_path.?);
+}
+
+// ============================================================================
+// Config Validation Failure Tests (ghostty-1i4.12)
+// ============================================================================
+
+test "Backend: tmux config empty session name" {
+    // Test that empty session name is handled gracefully
+    const alloc = testing.allocator;
+
+    const config = termio.Tmux.Config{
+        .session = "",
+    };
+
+    // Empty session should still initialize without error
+    var subprocess = try termio.Tmux.Subprocess.init(alloc, config);
+    defer subprocess.deinit();
+
+    // Empty session should be stored as-is (empty string is valid)
+    try testing.expectEqualSlices(u8, "", subprocess.session.?);
+}
+
+test "Backend: tmux config session name with special characters" {
+    // Test that session names with special characters work
+    const alloc = testing.allocator;
+
+    const config = termio.Tmux.Config{
+        .session = "my-session_123",
+    };
+
+    var subprocess = try termio.Tmux.Subprocess.init(alloc, config);
+    defer subprocess.deinit();
+
+    try testing.expectEqualSlices(u8, "my-session_123", subprocess.session.?);
+}
+
+test "Backend: tmux config session name with spaces" {
+    // Test that session names with spaces work (tmux allows this)
+    const alloc = testing.allocator;
+
+    const config = termio.Tmux.Config{
+        .session = "my session name",
+    };
+
+    var subprocess = try termio.Tmux.Subprocess.init(alloc, config);
+    defer subprocess.deinit();
+
+    try testing.expectEqualSlices(u8, "my session name", subprocess.session.?);
+}
+
+test "Backend: tmux config session name with colon (session ID format)" {
+    // Test that session names with colons work (used for session:window.pane format)
+    const alloc = testing.allocator;
+
+    // tmux accepts session:window.pane format for targeting specific panes
+    const config = termio.Tmux.Config{
+        .session = "my-session:0.0",
+    };
+
+    var subprocess = try termio.Tmux.Subprocess.init(alloc, config);
+    defer subprocess.deinit();
+
+    try testing.expectEqualSlices(u8, "my-session:0.0", subprocess.session.?);
+}
+
+test "Backend: tmux config socket path with tilde expansion" {
+    // Test that socket paths with ~ are stored as-is (expansion happens later)
+    const alloc = testing.allocator;
+
+    const config = termio.Tmux.Config{
+        .socket_path = "~/tmux-socket",
+    };
+
+    var subprocess = try termio.Tmux.Subprocess.init(alloc, config);
+    defer subprocess.deinit();
+
+    // Path should be stored as-is, ~ expansion is not done here
+    try testing.expectEqualSlices(u8, "~/tmux-socket", subprocess.socket_path.?);
+}
+
+test "Backend: tmux config relative socket path" {
+    // Test that relative socket paths are accepted
+    const alloc = testing.allocator;
+
+    const config = termio.Tmux.Config{
+        .socket_path = "./tmux.sock",
+    };
+
+    var subprocess = try termio.Tmux.Subprocess.init(alloc, config);
+    defer subprocess.deinit();
+
+    try testing.expectEqualSlices(u8, "./tmux.sock", subprocess.socket_path.?);
+}
+
+test "Backend: tmux config very long session name" {
+    // Test that very long session names are handled
+    const alloc = testing.allocator;
+
+    // tmux has limits but we accept whatever is given
+    const long_name = "a" ** 1000;
+    const config = termio.Tmux.Config{
+        .session = long_name,
+    };
+
+    var subprocess = try termio.Tmux.Subprocess.init(alloc, config);
+    defer subprocess.deinit();
+
+    try testing.expectEqualSlices(u8, long_name, subprocess.session.?);
+}
+
+test "Backend: tmux config unicode session name" {
+    // Test that unicode session names are handled
+    const alloc = testing.allocator;
+
+    const unicode_name = "会话-セッション-🎉";
+    const config = termio.Tmux.Config{
+        .session = unicode_name,
+    };
+
+    var subprocess = try termio.Tmux.Subprocess.init(alloc, config);
+    defer subprocess.deinit();
+
+    try testing.expectEqualSlices(u8, unicode_name, subprocess.session.?);
+}
+
+test "Backend: tmux config command with arguments" {
+    // Test that commands with arguments are stored correctly
+    const config = termio.Tmux.Config{
+        .command = "/bin/bash -l",
+    };
+
+    try testing.expectEqualSlices(u8, "/bin/bash -l", config.command.?);
+}
+
+test "Backend: tmux config working_directory with spaces" {
+    // Test that working directories with spaces are handled
+    const config = termio.Tmux.Config{
+        .working_directory = "/home/user/my documents",
+    };
+
+    try testing.expectEqualSlices(u8, "/home/user/my documents", config.working_directory.?);
+}
