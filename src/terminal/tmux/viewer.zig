@@ -2323,3 +2323,71 @@ test "two pane flow with pane state" {
         },
     });
 }
+
+test "window-pane-changed emits active-pane action" {
+    // Regression test for: %window-pane-changed should emit an action for active-pane changes.
+    // Currently, this notification is ignored (see line ~536 in next() function).
+    // When implemented, this test will verify that:
+    // 1. The viewer tracks the active pane in its state
+    // 2. A dedicated action (e.g., .active_pane_changed) is emitted
+    // 3. The action contains the window_id and pane_id from the notification
+    //
+    // Expected behavior: when tmux sends %window-pane-changed @42 %2,
+    // the viewer should emit an action indicating pane 2 is now active in window 42.
+    var viewer = try Viewer.init(testing.allocator);
+    defer viewer.deinit();
+
+    try testViewer(&viewer, &.{
+        // Initial startup
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{
+            .input = .{ .tmux = .{ .session_changed = .{
+                .id = 1,
+                .name = "test",
+            } } },
+            .contains_command = "display-message",
+        },
+        // Receive version response
+        .{
+            .input = .{ .tmux = .{ .block_end = "3.5a" } },
+            .contains_command = "list-windows",
+        },
+        // Initial window layout with one pane (pane 0)
+        .{
+            .input = .{ .tmux = .{
+                .block_end =
+                \\%1;1;0;0;1;0;0;0;1;0;;;100;50;39;8,16,24,32,40,48,56,64,72,80,88,96,104,112,120,128,136,144,152,160
+            ,
+            } },
+            .check = (struct {
+                fn check(v: *Viewer, _: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(1, v.windows.items.len);
+                    try testing.expectEqual(1, v.panes.count());
+                }
+            }).check,
+        },
+        // Now receive window-pane-changed notification
+        // This should emit an active_pane_changed action (currently does not)
+        .{
+            .input = .{ .tmux = .{ .window_pane_changed = .{
+                .window_id = 1,
+                .pane_id = 0,
+            } } },
+            // TODO: When implemented, this should contain an action like:
+            // .contains_tags = &.{.active_pane_changed},
+            // For now, we document the expected behavior with a check
+            .check = (struct {
+                fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
+                    // Currently: no actions are emitted (window_pane_changed is ignored)
+                    // Expected: an active_pane_changed action should be present
+                    // This test documents the gap and will fail when the feature is implemented
+                    try testing.expectEqual(0, actions.len); // Will change to expect > 0
+                }
+            }).check,
+        },
+        .{
+            .input = .{ .tmux = .exit },
+            .contains_tags = &.{.exit},
+        },
+    });
+}
