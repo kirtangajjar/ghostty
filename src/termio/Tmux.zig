@@ -94,26 +94,32 @@ pub fn threadEnter(
     var stream = xev.Stream.initFd(fds.write);
     errdefer stream.deinit();
 
-    // Start read thread
-    const read_thread = try std.Thread.spawn(
-        .{},
-        ReadThread.threadMain,
-        .{ alloc, fds.read, io, pipe[0] },
-    );
-    read_thread.setName("io-tmux-reader") catch {};
+    // Initialize viewer before spawning read thread
+    var viewer = try tmux_viewer.Viewer.init(alloc);
+    errdefer viewer.deinit();
 
-    // Setup thread data
+    // Pre-initialize thread data so we can pass active_pane_id pointer to read thread
     td.backend = .{ .tmux = .{
         .start = try std.time.Instant.now(),
         .write_stream = stream,
-        .read_thread = read_thread,
-        .read_thread_pipe = pipe[1],
-        .read_thread_fd = fds.read,
-        .viewer = try tmux_viewer.Viewer.init(alloc),
+        .viewer = viewer,
     } };
     errdefer {
         td.backend.tmux.viewer.deinit();
     }
+
+    // Start read thread with pointer to active_pane_id
+    const read_thread = try std.Thread.spawn(
+        .{},
+        ReadThread.threadMain,
+        .{ alloc, fds.read, io, pipe[0], &td.backend.tmux.active_pane_id },
+    );
+    read_thread.setName("io-tmux-reader") catch {};
+
+    // Complete thread data initialization
+    td.backend.tmux.read_thread = read_thread;
+    td.backend.tmux.read_thread_pipe = pipe[1];
+    td.backend.tmux.read_thread_fd = fds.read;
 }
 
 pub fn threadExit(self: *Tmux, td: *termio.Termio.ThreadData) void {
@@ -160,6 +166,7 @@ pub fn resize(
     try self.subprocess.resize(grid_size, screen_size);
 }
 
+
 pub fn queueWrite(
     self: *Tmux,
     alloc: Allocator,
@@ -175,34 +182,59 @@ pub fn queueWrite(
     // If our process is exited then we don't send any more writes.
     if (tmux.exited) return;
 
-    // Queue data to be written to tmux stdin
-    // This will send key input to tmux via %key commands
+    // Get the active pane ID for input routing.
+    // If no active pane is set, we can't route input - return early.
+    // This can happen before tmux sends the first window_pane_changed notification.
+    const pane_id = tmux.active_pane_id.load(.monotonic) orelse {
+        log.warn("no active pane set, dropping input (len={})", .{data.len});
+        return;
+    };
+
+    // Format and queue data as %key commands for tmux control mode.
+    // Format: %key %<pane-id> <hex-encoded-bytes>\n
+    // Each input byte becomes 2 hex chars, so we need larger buffers.
+    // We process input in chunks that fit within our 64-byte buffer pool.
+    // Max hex data per buffer: 64 - prefix_len - 1 (newline)
+    // Prefix format: "%key %<pane-id> " where pane-id can be up to 10 digits
+    // We conservatively allow ~20 bytes of hex-encoded data per buffer.
+    const max_hex_per_buffer: usize = 20; // 10 bytes of input = 20 hex chars
+    const max_input_per_buffer = max_hex_per_buffer / 2;
+
     var i: usize = 0;
     while (i < data.len) {
         const req = try tmux.write_req_pool.getGrow(alloc);
         const buf = try tmux.write_buf_pool.getGrow(alloc);
-        const slice = slice: {
-            // The maximum end index is either the end of our data or
-            // the end of our buffer, whichever is smaller.
-            const max = @min(data.len, i + buf.len);
-            const len = max - i;
-            @memcpy(buf[0..len], data[i..max]);
-            i = max;
-            break :slice buf[0..len];
+
+        // Calculate how many input bytes we can encode in this buffer
+        const remaining = data.len - i;
+        const chunk_len = @min(remaining, max_input_per_buffer);
+        const chunk = data[i .. i + chunk_len];
+
+        // Format the %key command
+        var fbs = std.io.fixedBufferStream(buf);
+        const writer = fbs.writer();
+        tmux_control.write(writer, pane_id, chunk) catch |err| {
+            log.err("failed to format tmux key command: {}", .{err});
+            tmux.write_req_pool.put();
+            tmux.write_buf_pool.put();
+            return;
         };
 
+        const written = fbs.getWritten();
+        i += chunk_len;
+
+        // Queue the formatted write
         tmux.write_stream.queueWrite(
             td.loop,
             &tmux.write_queue,
             req,
-            .{ .slice = slice },
+            .{ .slice = written },
             ThreadData,
             tmux,
             ttyWrite,
         );
     }
 }
-
 /// Write data directly to tmux. This is a synchronous write that bypasses
 /// the async queue system. Use this for time-sensitive writes.
 pub fn write(self: *Tmux, data: []const u8) !void {
@@ -287,6 +319,12 @@ pub const ThreadData = struct {
 
     /// The tmux viewer state - tracks windows, panes, etc.
     viewer: tmux_viewer.Viewer,
+
+    /// The currently active pane ID for input routing.
+    /// Updated from the read thread when window_pane_changed notifications arrive.
+    /// This is the authoritative source for which pane receives input.
+    /// Uses atomic for thread-safe access between read and write threads.
+    active_pane_id: std.atomic.Value(?usize) = .{ .raw = null },
 
     pub fn deinit(self: *ThreadData, alloc: Allocator) void {
         posix.close(self.read_thread_pipe);
@@ -518,7 +556,13 @@ const Subprocess = struct {
 
 /// Read thread implementation for tmux control mode.
 const ReadThread = struct {
-    fn threadMain(alloc: Allocator, fd: posix.fd_t, io: *termio.Termio, quit: posix.fd_t) void {
+    fn threadMain(
+        alloc: Allocator,
+        fd: posix.fd_t,
+        io: *termio.Termio,
+        quit: posix.fd_t,
+        active_pane_id: *std.atomic.Value(?usize),
+    ) void {
         // Always close our end of the pipe when we exit.
         defer posix.close(quit);
 
@@ -579,7 +623,7 @@ const ReadThread = struct {
                 for (buf[0..n]) |byte| {
                     if (parser.put(byte) catch null) |notification| {
                         // Handle the notification
-                        handleNotification(io, &notification);
+                        handleNotification(io, active_pane_id, &notification);
                     }
                 }
             }
@@ -604,7 +648,11 @@ const ReadThread = struct {
         }
     }
 
-    fn handleNotification(io: *termio.Termio, notification: *const tmux_control.Notification) void {
+    fn handleNotification(
+        io: *termio.Termio,
+        active_pane_id: *std.atomic.Value(?usize),
+        notification: *const tmux_control.Notification,
+    ) void {
         switch (notification.*) {
             .output => |out| {
                 // Output from a tmux pane - process it
@@ -612,6 +660,16 @@ const ReadThread = struct {
                 log.debug("tmux output pane={} len={}", .{ out.pane_id, out.data.len });
                 // TODO: Route to the correct pane's terminal
                 termio.Termio.processOutput(io, out.data);
+            },
+            .window_pane_changed => |info| {
+                // The active pane in a window changed. Update the active pane ID
+                // for input routing. This is the authoritative source for which
+                // pane receives user input.
+                log.debug("tmux active pane changed: window={} pane={}", .{
+                    info.window_id,
+                    info.pane_id,
+                });
+                active_pane_id.store(info.pane_id, .monotonic);
             },
             .block_end => |data| {
                 // A command response block ended
