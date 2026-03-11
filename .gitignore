@@ -25,3 +25,10 @@ glad.zip
 /ghostty.qcow2
 
 vgcore.*
+
+# Gas Town (added by gt)
+.runtime/
+.claude/
+.logs/
+__pycache__/
+dolt/
