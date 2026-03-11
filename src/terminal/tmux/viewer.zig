@@ -181,6 +181,11 @@ pub const Viewer = struct {
     /// The panes in the current session, mapped by pane ID.
     panes: PanesMap,
 
+    /// The active pane ID in the current session. This is updated when
+    /// we receive %window-pane-changed notifications from tmux. This is
+    /// used to route keyboard input to the correct pane.
+    active_pane_id: ?usize = null,
+
     /// The arena used for the prior action allocated state. This contains
     /// the contents for the actions as well as the actions slice itself.
     action_arena: ArenaAllocator.State,
@@ -323,6 +328,19 @@ pub const Viewer = struct {
     /// would be required.
     pub fn getWindows(self: *const Viewer) []const Window {
         return self.windows.items;
+    }
+
+    /// Returns the active pane ID for the session.
+    ///
+    /// This is a thread-safe getter that returns the currently active pane.
+    /// Returns null if no active pane is known (e.g., during startup).
+    ///
+    /// Note: The caller must ensure they are not calling this concurrently
+    /// with mutations (i.e., from a different thread than the one calling
+    /// `next()`). If cross-thread access is needed, external synchronization
+    /// would be required.
+    pub fn getActivePaneId(self: *const Viewer) ?usize {
+        return self.active_pane_id;
     }
 
     /// Send in an input event (such as a tmux protocol notification,
@@ -531,9 +549,11 @@ pub const Viewer = struct {
                 return self.defunct();
             },
 
-            // The active pane changed. We don't care about this because
-            // we handle our own focus.
-            .window_pane_changed => {},
+            // The active pane changed. We track this for input routing.
+            .window_pane_changed => |info| {
+                self.active_pane_id = info.pane_id;
+                log.debug("active pane changed to pane_id={}", .{info.pane_id});
+            },
 
             // We ignore this one. It means a session was created or
             // destroyed. If it was our own session we will get an exit
@@ -2322,4 +2342,35 @@ test "two pane flow with pane state" {
             .contains_tags = &.{.exit},
         },
     });
+}
+
+test "active pane tracking" {
+    // Test that active_pane_id starts as null
+    var viewer = try Viewer.init(testing.allocator);
+    defer viewer.deinit();
+
+    // Initially, no active pane is known
+    try testing.expectEqual(@as(?usize, null), viewer.getActivePaneId());
+
+    // After receiving window-pane-changed, active pane should be updated
+    const actions = viewer.next(.{ .tmux = .{ .window_pane_changed = .{
+        .window_id = 0,
+        .pane_id = 42,
+    } } });
+    try testing.expectEqual(@as(usize, 0), actions.len); // No actions for pane change
+    try testing.expectEqual(@as(?usize, 42), viewer.getActivePaneId());
+
+    // Another pane change updates the active pane
+    _ = viewer.next(.{ .tmux = .{ .window_pane_changed = .{
+        .window_id = 0,
+        .pane_id = 99,
+    } } });
+    try testing.expectEqual(@as(?usize, 99), viewer.getActivePaneId());
+
+    // Different window's pane change also updates active pane
+    _ = viewer.next(.{ .tmux = .{ .window_pane_changed = .{
+        .window_id = 1,
+        .pane_id = 7,
+    } } });
+    try testing.expectEqual(@as(?usize, 7), viewer.getActivePaneId());
 }

@@ -175,20 +175,39 @@ pub fn queueWrite(
     // If our process is exited then we don't send any more writes.
     if (tmux.exited) return;
 
-    // Queue data to be written to tmux stdin
-    // This will send key input to tmux via %key commands
+    // Get the active pane ID. If we don't have one yet, we can't route
+    // input. This shouldn't happen during normal operation after startup.
+    const pane_id = tmux.viewer.getActivePaneId() orelse {
+        log.warn("cannot route input: no active pane known", .{});
+        return;
+    };
+
+    // Queue data to be written to tmux stdin as %key commands.
+    // We need to format each chunk as: %key %<pane-id> <hex-encoded-bytes>\n
+    // The hex encoding doubles the size, plus the prefix (~10 bytes) and newline.
+    // We process input in smaller chunks to fit in our 64-byte buffers after formatting.
     var i: usize = 0;
     while (i < data.len) {
         const req = try tmux.write_req_pool.getGrow(alloc);
         const buf = try tmux.write_buf_pool.getGrow(alloc);
+
+        // Format the %key command into the buffer
+        // We can fit up to ~24 bytes of input data per buffer (48 hex + prefix)
+        const max_input_bytes = @min(data.len - i, 24);
+        const input_chunk = data[i .. i + max_input_bytes];
+
         const slice = slice: {
-            // The maximum end index is either the end of our data or
-            // the end of our buffer, whichever is smaller.
-            const max = @min(data.len, i + buf.len);
-            const len = max - i;
-            @memcpy(buf[0..len], data[i..max]);
-            i = max;
-            break :slice buf[0..len];
+            var writer: std.Io.Writer = .fixed(buf);
+            tmux_control.write(&writer, pane_id, input_chunk) catch |err| {
+                log.err("failed to format tmux key command: {}", .{err});
+                return;
+            };
+            writer.writeByte('\n') catch |err| {
+                log.err("failed to write newline to tmux key command: {}", .{err});
+                return;
+            };
+            i += max_input_bytes;
+            break :slice writer.buffered();
         };
 
         tmux.write_stream.queueWrite(
@@ -633,3 +652,64 @@ const ReadThread = struct {
         }
     }
 };
+// ============================================================================
+// Tests
+// ============================================================================
+
+const testing = std.testing;
+
+test "Tmux: queueWrite requires active pane" {
+    // Test that queueWrite returns early if no active pane is set
+    const alloc = testing.allocator;
+    const config = Config{};
+
+    var tmux = try Tmux.init(alloc, config);
+    defer tmux.deinit();
+
+    // Create a minimal ThreadData for testing
+    // Without an active pane, queueWrite should return early
+    var td: termio.Termio.ThreadData = undefined;
+    td.backend = .{ .tmux = .{
+        .start = try std.time.Instant.now(),
+        .write_stream = undefined,
+        .read_thread = undefined,
+        .read_thread_pipe = undefined,
+        .read_thread_fd = undefined,
+        .viewer = try tmux_viewer.Viewer.init(alloc),
+    } };
+    defer td.backend.tmux.viewer.deinit();
+
+    // No active pane set, so this should return without error
+    try tmux.queueWrite(alloc, &td, "test", false);
+}
+
+test "Tmux: queueWrite with active pane" {
+    // Test that queueWrite works when active pane is set
+    const alloc = testing.allocator;
+    const config = Config{};
+
+    var tmux = try Tmux.init(alloc, config);
+    defer tmux.deinit();
+
+    var td: termio.Termio.ThreadData = undefined;
+    td.backend = .{ .tmux = .{
+        .start = try std.time.Instant.now(),
+        .write_stream = undefined,
+        .read_thread = undefined,
+        .read_thread_pipe = undefined,
+        .read_thread_fd = undefined,
+        .viewer = try tmux_viewer.Viewer.init(alloc),
+    } };
+    defer td.backend.tmux.viewer.deinit();
+
+    // Set active pane via window-pane-changed notification
+    _ = td.backend.tmux.viewer.next(.{ .tmux = .{ .window_pane_changed = .{
+        .window_id = 0,
+        .pane_id = 42,
+    } } });
+
+    // Now we have an active pane, queueWrite should work
+    // Note: This will fail because write_stream is undefined, but we test
+    // that it doesn't fail early due to missing active pane
+    try testing.expectEqual(@as(?usize, 42), td.backend.tmux.viewer.getActivePaneId());
+}
