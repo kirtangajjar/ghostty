@@ -2687,3 +2687,229 @@ test "layout change after output still produces pane_dirty" {
         },
     });
 }
+
+// =============================================================================
+// Active Pane Transition Tests (ghostty-1i4.8)
+//
+// These tests verify that window-pane-changed notifications are correctly
+// handled and produce active_pane actions. The active pane tracking is
+// essential for routing user input to the correct tmux pane.
+
+test "window-pane-changed produces active_pane action" {
+    // Test that a window-pane-changed notification produces an active_pane action
+    var viewer = try Viewer.init(testing.allocator);
+    defer viewer.deinit();
+
+    try testViewer(&viewer, &.{
+        // Initial startup
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{
+            .input = .{ .tmux = .{ .session_changed = .{
+                .id = 1,
+                .name = "test",
+            } } },
+            .contains_command = "display-message",
+        },
+        .{
+            .input = .{ .tmux = .{ .block_end = "3.5a" } },
+            .contains_command = "list-windows",
+        },
+        // Two-pane window
+        .{
+            .input = .{ .tmux = .{
+                .block_end = "$0 @0 165 79 ca97,165x79,0,0[165x40,0,0,0,165x38,0,41,4]",
+            } },
+            .contains_tags = &.{ .windows, .command },
+        },
+        // Complete all capture-pane commands
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        // Active pane changes to pane 4
+        .{
+            .input = .{ .tmux = .{ .window_pane_changed = .{
+                .window_id = 0,
+                .pane_id = 4,
+            } } },
+            .check = (struct {
+                fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(1, actions.len);
+                    try testing.expect(actions[0] == .active_pane);
+                    try testing.expectEqual(@as(usize, 0), actions[0].active_pane.window_id);
+                    try testing.expectEqual(@as(usize, 4), actions[0].active_pane.pane_id);
+                }
+            }).check,
+        },
+        .{
+            .input = .{ .tmux = .exit },
+            .contains_tags = &.{.exit},
+        },
+    });
+}
+
+test "multiple pane switches produce sequential active_pane actions" {
+    // Test that multiple pane switches each produce their own active_pane action
+    var viewer = try Viewer.init(testing.allocator);
+    defer viewer.deinit();
+
+    try testViewer(&viewer, &.{
+        // Initial startup
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{
+            .input = .{ .tmux = .{ .session_changed = .{
+                .id = 1,
+                .name = "test",
+            } } },
+            .contains_command = "display-message",
+        },
+        .{
+            .input = .{ .tmux = .{ .block_end = "3.5a" } },
+            .contains_command = "list-windows",
+        },
+        // Two-pane window
+        .{
+            .input = .{ .tmux = .{
+                .block_end = "$0 @0 165 79 ca97,165x79,0,0[165x40,0,0,0,165x38,0,41,4]",
+            } },
+            .contains_tags = &.{ .windows, .command },
+        },
+        // Complete all capture-pane commands
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        // First switch to pane 0
+        .{
+            .input = .{ .tmux = .{ .window_pane_changed = .{
+                .window_id = 0,
+                .pane_id = 0,
+            } } },
+            .check = (struct {
+                fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(1, actions.len);
+                    try testing.expectEqual(@as(usize, 0), actions[0].active_pane.pane_id);
+                }
+            }).check,
+        },
+        // Second switch to pane 4
+        .{
+            .input = .{ .tmux = .{ .window_pane_changed = .{
+                .window_id = 0,
+                .pane_id = 4,
+            } } },
+            .check = (struct {
+                fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(1, actions.len);
+                    try testing.expectEqual(@as(usize, 4), actions[0].active_pane.pane_id);
+                }
+            }).check,
+        },
+        // Third switch back to pane 0
+        .{
+            .input = .{ .tmux = .{ .window_pane_changed = .{
+                .window_id = 0,
+                .pane_id = 0,
+            } } },
+            .check = (struct {
+                fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(1, actions.len);
+                    try testing.expectEqual(@as(usize, 0), actions[0].active_pane.pane_id);
+                }
+            }).check,
+        },
+        .{
+            .input = .{ .tmux = .exit },
+            .contains_tags = &.{.exit},
+        },
+    });
+}
+
+test "pane switch during layout change preserves active_pane emission" {
+    // Test that active_pane actions are still emitted correctly after layout changes
+    var viewer = try Viewer.init(testing.allocator);
+    defer viewer.deinit();
+
+    try testViewer(&viewer, &.{
+        // Initial startup
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{
+            .input = .{ .tmux = .{ .session_changed = .{
+                .id = 1,
+                .name = "test",
+            } } },
+            .contains_command = "display-message",
+        },
+        .{
+            .input = .{ .tmux = .{ .block_end = "3.5a" } },
+            .contains_command = "list-windows",
+        },
+        // Single pane window
+        .{
+            .input = .{ .tmux = .{
+                .block_end = "$0 @0 83 44 b7dd,83x44,0,0,0",
+            } },
+            .contains_tags = &.{ .windows, .command },
+        },
+        // Complete all capture-pane commands
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        // Active pane change for single pane
+        .{
+            .input = .{ .tmux = .{ .window_pane_changed = .{
+                .window_id = 0,
+                .pane_id = 0,
+            } } },
+            .check = (struct {
+                fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(1, actions.len);
+                    try testing.expectEqual(@as(usize, 0), actions[0].active_pane.pane_id);
+                }
+            }).check,
+        },
+        // Layout change adds a new pane (pane 2)
+        .{
+            .input = .{ .tmux = .{ .layout_change = .{
+                .window_id = 0,
+                .layout = "e07b,83x44,0,0[83x22,0,0,0,83x21,0,23,2]",
+                .visible_layout = "e07b,83x44,0,0[83x22,0,0,0,83x21,0,23,2]",
+                .raw_flags = "*",
+            } } },
+            .contains_tags = &.{.windows},
+        },
+        // Complete capture-pane for new pane 2
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        .{ .input = .{ .tmux = .{ .block_end = "" } } },
+        // Active pane change after layout change
+        .{
+            .input = .{ .tmux = .{ .window_pane_changed = .{
+                .window_id = 0,
+                .pane_id = 2,
+            } } },
+            .check = (struct {
+                fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
+                    try testing.expectEqual(1, actions.len);
+                    try testing.expectEqual(@as(usize, 2), actions[0].active_pane.pane_id);
+                }
+            }).check,
+        },
+        .{
+            .input = .{ .tmux = .exit },
+            .contains_tags = &.{.exit},
+        },
+    });
+}

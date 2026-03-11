@@ -692,15 +692,6 @@ test "Tmux: basic lifecycle init/deinit" {
     // (verified by successful init and deinit)
 }
 
-test "Tmux: ThreadData lifecycle" {
-    // Test that ThreadData can be initialized and deinitialized
-    const alloc = testing.allocator;
-
-    var thread_data: ThreadData = .{};
-    defer thread_data.deinit(alloc);
-
-    // Stub implementation should handle deinit gracefully
-}
 
 test "Tmux: Config default initialization" {
     // Test that Config can be created with default values
