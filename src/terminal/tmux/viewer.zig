@@ -2376,7 +2376,7 @@ test "output produces pane_dirty for known pane" {
         // Single pane window
         .{
             .input = .{ .tmux = .{
-                .block_end = "$0 @0 80 24 b7dd,80x24,0,0,0",
+                .block_end = "$0 @0 83 44 b7dd,83x44,0,0,0",
             } },
             .contains_tags = &.{ .windows, .command },
         },
@@ -2427,7 +2427,7 @@ test "multiple output events produce separate pane_dirty actions" {
         // Two-pane window
         .{
             .input = .{ .tmux = .{
-                .block_end = "$0 @0 80x24 b7dd,80x24,0,0[80x12,0,0,0,80x11,0,13,1]",
+                .block_end = "$0 @0 165 79 ca97,165x79,0,0[165x40,0,0,0,165x38,0,41,4]",
             } },
             .contains_tags = &.{ .windows, .command },
             .check = (struct {
@@ -2458,11 +2458,11 @@ test "multiple output events produce separate pane_dirty actions" {
         },
         // Output for pane 1
         .{
-            .input = .{ .tmux = .{ .output = .{ .pane_id = 1, .data = "pane 1 output" } } },
+            .input = .{ .tmux = .{ .output = .{ .pane_id = 4, .data = "pane 4 output" } } },
             .check = (struct {
                 fn check(_: *Viewer, actions: []const Viewer.Action) anyerror!void {
                     try testing.expectEqual(1, actions.len);
-                    try testing.expectEqual(1, actions[0].pane_dirty);
+                    try testing.expectEqual(4, actions[0].pane_dirty);
                 }
             }).check,
         },
@@ -2507,7 +2507,7 @@ test "rapid sequential outputs produce individual pane_dirty actions" {
         // Single pane window
         .{
             .input = .{ .tmux = .{
-                .block_end = "$0 @0 80 24 b7dd,80x24,0,0,0",
+                .block_end = "$0 @0 83 44 b7dd,83x44,0,0,0",
             } },
             .contains_tags = &.{ .windows, .command },
         },
@@ -2576,7 +2576,7 @@ test "output for unknown pane produces no action" {
         // Single pane window with pane 0
         .{
             .input = .{ .tmux = .{
-                .block_end = "$0 @0 80 24 b7dd,80x24,0,0,0",
+                .block_end = "$0 @0 83 44 b7dd,83x44,0,0,0",
             } },
             .contains_tags = &.{ .windows, .command },
         },
@@ -2625,7 +2625,7 @@ test "layout change after output still produces pane_dirty" {
         // Single pane window
         .{
             .input = .{ .tmux = .{
-                .block_end = "$0 @0 80 24 b7dd,80x24,0,0,0",
+                .block_end = "$0 @0 83 44 b7dd,83x44,0,0,0",
             } },
             .contains_tags = &.{ .windows, .command },
         },
@@ -2649,8 +2649,8 @@ test "layout change after output still produces pane_dirty" {
         .{
             .input = .{ .tmux = .{ .layout_change = .{
                 .window_id = 0,
-                .layout = "e07b,80x24,0,0[80x12,0,0,0,80x11,0,13,2]",
-                .visible_layout = "e07b,80x24,0,0[80x12,0,0,0,80x11,0,13,2]",
+                .layout = "e07b,83x44,0,0[83x22,0,0,0,83x21,0,23,2]",
+                .visible_layout = "e07b,83x44,0,0[83x22,0,0,0,83x21,0,23,2]",
                 .raw_flags = "*",
             } } },
             .contains_tags = &.{.windows},
