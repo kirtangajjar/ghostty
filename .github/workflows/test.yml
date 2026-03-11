@@ -1046,7 +1046,14 @@ jobs:
       - name: Install tmux ${{ matrix.tmux_version }}
         run: |
           sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y tmux
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            libevent-dev ncurses-dev build-essential bison pkg-config
+          curl -sLO https://github.com/tmux/tmux/releases/download/${{ matrix.tmux_version }}/tmux-${{ matrix.tmux_version }}.tar.gz
+          tar -zxf tmux-${{ matrix.tmux_version }}.tar.gz
+          cd tmux-${{ matrix.tmux_version }}
+          ./configure --prefix=/usr/local
+          make -j$(nproc)
+          sudo make install
           tmux -V
 
       - name: Run tmux integration tests
