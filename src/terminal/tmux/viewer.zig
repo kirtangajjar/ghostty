@@ -360,6 +360,15 @@ pub const Viewer = struct {
         self: *Viewer,
         n: control.Notification,
     ) []const Action {
+        // Handle window_pane_changed in all states - it can come at any time
+        // and we need to track the active pane for input routing.
+        if (n == .window_pane_changed) {
+            const info = n.window_pane_changed;
+            self.active_pane_id = info.pane_id;
+            log.debug("active pane changed to pane_id={}", .{info.pane_id});
+            // Continue processing in state-specific handler
+        }
+
         return switch (self.state) {
             .defunct => defunct: {
                 log.info("received notification in defunct state, ignoring", .{});
