@@ -94,11 +94,15 @@ pub fn threadEnter(
     var stream = xev.Stream.initFd(fds.write);
     errdefer stream.deinit();
 
-    // Start read thread
+    // Create viewer BEFORE spawning read thread so it can be passed to the thread
+    var viewer = try tmux_viewer.Viewer.init(alloc);
+    errdefer viewer.deinit();
+
+    // Start read thread - pass viewer pointer and write fd for sending commands back to tmux
     const read_thread = try std.Thread.spawn(
         .{},
         ReadThread.threadMain,
-        .{ alloc, fds.read, io, pipe[0] },
+        .{ alloc, fds.read, fds.write, io, pipe[0], &viewer },
     );
     read_thread.setName("io-tmux-reader") catch {};
 
@@ -109,11 +113,10 @@ pub fn threadEnter(
         .read_thread = read_thread,
         .read_thread_pipe = pipe[1],
         .read_thread_fd = fds.read,
-        .viewer = try tmux_viewer.Viewer.init(alloc),
+        .viewer = viewer,
     } };
-    errdefer {
-        td.backend.tmux.viewer.deinit();
-    }
+    // Note: viewer is moved into td, so no errdefer needed for it here
+    _ = td.backend.tmux.viewer; // viewer is now owned by ThreadData
 }
 
 pub fn threadExit(self: *Tmux, td: *termio.Termio.ThreadData) void {
@@ -518,7 +521,14 @@ const Subprocess = struct {
 
 /// Read thread implementation for tmux control mode.
 const ReadThread = struct {
-    fn threadMain(alloc: Allocator, fd: posix.fd_t, io: *termio.Termio, quit: posix.fd_t) void {
+    fn threadMain(
+        alloc: Allocator,
+        read_fd: posix.fd_t,
+        write_fd: posix.fd_t,
+        io: *termio.Termio,
+        quit: posix.fd_t,
+        viewer: *tmux_viewer.Viewer,
+    ) void {
         // Always close our end of the pipe when we exit.
         defer posix.close(quit);
 
@@ -530,22 +540,22 @@ const ReadThread = struct {
         };
         defer crash_mod.sentry.thread_state = null;
 
-        // Set fd to non-blocking
-        if (posix.fcntl(fd, posix.F.GETFL, 0)) |flags| {
+        // Set read fd to non-blocking
+        if (posix.fcntl(read_fd, posix.F.GETFL, 0)) |flags| {
             _ = posix.fcntl(
-                fd,
+                read_fd,
                 posix.F.SETFL,
                 flags | @as(u32, @bitCast(posix.O{ .NONBLOCK = true })),
             ) catch |err| {
-                log.warn("failed to set tmux fd non-blocking: {}", .{err});
+                log.warn("failed to set tmux read fd non-blocking: {}", .{err});
             };
         } else |err| {
-            log.warn("failed to get tmux fd flags: {}", .{err});
+            log.warn("failed to get tmux read fd flags: {}", .{err});
         }
 
         // Setup poll fds
         var pollfds: [2]posix.pollfd = .{
-            .{ .fd = fd, .events = posix.POLL.IN, .revents = undefined },
+            .{ .fd = read_fd, .events = posix.POLL.IN, .revents = undefined },
             .{ .fd = quit, .events = posix.POLL.IN, .revents = undefined },
         };
 
@@ -557,7 +567,7 @@ const ReadThread = struct {
         while (true) {
             // Try to read as much as possible first
             while (true) {
-                const n = posix.read(fd, &buf) catch |err| {
+                const n = posix.read(read_fd, &buf) catch |err| {
                     switch (err) {
                         error.NotOpenForReading,
                         error.InputOutput,
@@ -578,8 +588,8 @@ const ReadThread = struct {
                 // Process the buffer through the parser
                 for (buf[0..n]) |byte| {
                     if (parser.put(byte) catch null) |notification| {
-                        // Handle the notification
-                        handleNotification(io, &notification);
+                        // Handle the notification - pass viewer and write fd for commands
+                        handleNotification(io, viewer, write_fd, &notification);
                     }
                 }
             }
@@ -604,7 +614,46 @@ const ReadThread = struct {
         }
     }
 
-    fn handleNotification(io: *termio.Termio, notification: *const tmux_control.Notification) void {
+    fn handleNotification(
+        io: *termio.Termio,
+        viewer: *tmux_viewer.Viewer,
+        write_fd: posix.fd_t,
+        notification: *const tmux_control.Notification,
+    ) void {
+        // First, process the notification through the viewer to get actions
+        const actions = viewer.next(.{ .tmux = notification.* });
+        for (actions) |action| {
+            log.debug("tmux viewer action={}", .{action});
+            switch (action) {
+                .exit => {
+                    // We ignore this because we will fully exit when
+                    // our control connection ends. We may want to handle
+                    // this in the future to notify our GUI we're
+                    // disconnected though.
+                },
+
+                .command => |command| {
+                    // Send command back to tmux by writing directly to the write fd.
+                    // The command string already includes the trailing newline.
+                    log.debug("tmux viewer command: {s}", .{command});
+                    writeCommand(write_fd, command);
+                },
+
+                .windows => {
+                    // Windows changed - notify the surface
+                    // TODO: Implement window change notification
+                    log.debug("tmux windows changed", .{});
+                },
+
+                .pane_dirty => |pane_id| {
+                    // Pane needs re-render
+                    // TODO: Implement pane dirty notification
+                    log.debug("tmux pane dirty: {}", .{pane_id});
+                },
+            }
+        }
+
+        // Handle output specially - it's not a viewer action but direct data
         switch (notification.*) {
             .output => |out| {
                 // Output from a tmux pane - process it
@@ -627,9 +676,25 @@ const ReadThread = struct {
                 // TODO: Signal the surface that tmux has exited
             },
             else => {
-                // Other notifications (session-changed, window-add, etc.)
-                log.debug("tmux notification: {s}", .{@tagName(notification.*)});
+                // Other notifications already handled by viewer actions above
             },
+        }
+    }
+
+    /// Write a command to tmux synchronously. This is used for viewer-generated
+    /// commands that need to be sent back to tmux.
+    fn writeCommand(write_fd: posix.fd_t, command: []const u8) void {
+        var remaining = command;
+        while (remaining.len > 0) {
+            const written = posix.write(write_fd, remaining) catch |err| {
+                log.err("failed to write viewer command to tmux: {}", .{err});
+                return;
+            };
+            if (written == 0) {
+                log.err("write to tmux returned 0, command may be incomplete", .{});
+                return;
+            }
+            remaining = remaining[written..];
         }
     }
 };
